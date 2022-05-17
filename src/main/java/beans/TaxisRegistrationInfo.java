@@ -4,6 +4,7 @@ import javax.xml.bind.annotation.XmlAccessType;
 import javax.xml.bind.annotation.XmlAccessorType;
 import javax.xml.bind.annotation.XmlElement;
 import javax.xml.bind.annotation.XmlRootElement;
+import java.util.ArrayList;
 import java.util.List;
 
 @XmlRootElement
@@ -16,13 +17,17 @@ public class TaxisRegistrationInfo {
     @XmlElement(name="taxi_list")
     private List<TaxiInfo> taxiInfoList;
 
-    public TaxisRegistrationInfo() {}
+    public TaxisRegistrationInfo() {
+        myStartingPosition = new Position();
+        taxiInfoList = new ArrayList<>();
+    }
 
     public TaxisRegistrationInfo(Position start, List<TaxiInfo> ts){
         myStartingPosition = start;
         taxiInfoList = ts;
     }
 
+    // getters e Setters
     public Position getMyStartingPosition() {
         return myStartingPosition;
     }
@@ -33,5 +38,9 @@ public class TaxisRegistrationInfo {
 
     public List<TaxiInfo> getTaxiInfoList() {
         return taxiInfoList;
+    }
+
+    public void setTaxiInfoList(List<TaxiInfo> taxiInfoList) {
+        this.taxiInfoList = taxiInfoList;
     }
 }

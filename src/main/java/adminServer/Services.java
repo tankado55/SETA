@@ -1,5 +1,6 @@
 package adminServer;
 
+import beans.BeansTest;
 import beans.TaxiInfo;
 import beans.TaxisRegistrationInfo;
 import exceptions.taxi.IdAlreadyPresentException;
@@ -23,7 +24,8 @@ public class Services {
             TaxisInfoManager taxisInfoManager = TaxisInfoManager.getInstance();
             taxisInfoManager.add(t);
             TaxisRegistrationInfo response = new TaxisRegistrationInfo(AdministratorServer.generateStartingPoint()
-                                                                            , taxisInfoManager.getTaxiList());
+                                                                           , taxisInfoManager.getTaxiList());
+
             return Response.ok(response).build();
 
         } catch (IdAlreadyPresentException e) {

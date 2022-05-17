@@ -1,5 +1,6 @@
 package taxiProcess;
 
+import beans.BeansTest;
 import beans.TaxiInfo;
 import beans.TaxisRegistrationInfo;
 import com.google.gson.Gson;
@@ -39,16 +40,27 @@ public class Taxi {
         TaxiInfo myTaxiInfo = new TaxiInfo(id, ip, port);
         ClientResponse clientResponse = postRequest(client,SERVERADDRESS+postPath,myTaxiInfo);
         // print results
-        //System.out.println(clientResponse.toString());
+        System.out.println(clientResponse.toString());
         TaxisRegistrationInfo regInfo = clientResponse.getEntity(TaxisRegistrationInfo.class);
 
          for (TaxiInfo info : regInfo.getTaxiInfoList()) {
-            System.out.println("taxi: " + info.getId() + info.getIp() + info.getPort());
+            System.out.println("taxi " + info.getId() + ", address: " +info.getIp() + ":" + info.getPort());
         }
         System.out.println("Taxi id: " + id +", My Starting position: "
                 + regInfo.getMyStartingPosition().getX() + ", "
                 + regInfo.getMyStartingPosition().getY());
 
+
+    }
+
+    public static void testPost(){
+        Client client = Client.create();
+        String postPath = "/taxis/add";
+        TaxiInfo myTaxiInfo = new TaxiInfo("125676873", "localhost", "50200");
+        ClientResponse clientResponse = postRequest(client,SERVERADDRESS+postPath,myTaxiInfo);
+        BeansTest regInfo = clientResponse.getEntity(BeansTest.class);
+
+            System.out.println("taxi: " + regInfo.getX());
 
     }
 
