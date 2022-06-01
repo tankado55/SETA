@@ -24,12 +24,7 @@ public class TaxisInfoManager {
         return instance;
     }
 
-    // getters & setters
-    public List<TaxiInfo> getTaxiList() {
-        return taxiInfoList;
-    }
-
-    public synchronized void add(TaxiInfo taxiInfo) throws IdAlreadyPresentException {
+    public synchronized List<TaxiInfo> add(TaxiInfo taxiInfo) throws IdAlreadyPresentException {
         // check if taxi id is already present
         for (TaxiInfo t : taxiInfoList) {
             if (t.getId().equals(taxiInfo.getId())){
@@ -37,7 +32,9 @@ public class TaxisInfoManager {
             }
         }
         // not present
+        List<TaxiInfo> oldTaxiInfoList = new ArrayList<TaxiInfo>(taxiInfoList);
         taxiInfoList.add(taxiInfo);
+        return oldTaxiInfoList;
     }
 
     public synchronized void delete(String id) throws TaxiNotPresentException {

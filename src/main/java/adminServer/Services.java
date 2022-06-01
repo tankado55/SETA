@@ -8,6 +8,7 @@ import exceptions.taxi.TaxiNotPresentException;
 
 import javax.ws.rs.*;
 import javax.ws.rs.core.Response;
+import java.util.List;
 
 
 @Path("taxis")
@@ -22,9 +23,10 @@ public class Services {
         // if it fail return a message
         try {
             TaxisInfoManager taxisInfoManager = TaxisInfoManager.getInstance();
-            taxisInfoManager.add(t);
+            List<TaxiInfo> otherTaxiList = taxisInfoManager.add(t);
             TaxisRegistrationInfo response = new TaxisRegistrationInfo(AdministratorServer.generateStartingPoint()
-                                                                           , taxisInfoManager.getTaxiList());
+                                                                           , otherTaxiList);
+
 
             return Response.ok(response).build();
 
