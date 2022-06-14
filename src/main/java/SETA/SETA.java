@@ -21,10 +21,7 @@ public class SETA {
     static String broker = "tcp://localhost:1883";
     static MqttConnectOptions connOpts;
     static String clientId = MqttClient.generateClientId();
-    static String district1Topic = "seta/smartcity/rides/district1";
-    static String district2Topic = "seta/smartcity/rides/district2";
-    static String district3Topic = "seta/smartcity/rides/district3";
-    static String district4Topic = "seta/smartcity/rides/district4";
+    static String districtTopic = "seta/smartcity/rides/district";
     static int qos = 2;
 
     public static void main(String[] args) throws InterruptedException {
@@ -40,15 +37,15 @@ public class SETA {
             RideRequest ride2 = generateRandomRide(Integer.toString(idCounter));
             ++idCounter;
 
-            publishRide(ride1.toMsg());
-            publishRide(ride2.toMsg());
+            publishRide(ride1.toMsg(), districtTopic + ride1.getDistrict());
+            publishRide(ride2.toMsg(), districtTopic + ride1.getDistrict());
 
             Thread.sleep(5000);
         }
 
     }
 
-    private static void publishRide(RideRequestMsg r){
+    private static void publishRide(RideRequestMsg r, String topic){
         try {
             // Connect the client
             client = new MqttClient(broker, clientId);
@@ -56,19 +53,17 @@ public class SETA {
             client.connect(connOpts);
             System.out.println(clientId + " Connected");
 
-            String payload = String.valueOf(0 + (Math.random() * 10)); // TODO le ride nel payload (protobuffer o json)
-            MqttMessage message = new MqttMessage(payload.getBytes());
+            MqttMessage message = new MqttMessage(r.toByteArray());
 
             // Set the QoS on the Message
             message.setQos(qos);
-            System.out.println(clientId + " Publishing message: " + payload + " ...");
+            System.out.println(clientId + " Publishing rideRequest!");
             client.publish(topic, message);
             System.out.println(clientId + " Message published");
 
             if (client.isConnected())
                 client.disconnect();
             System.out.println("Publisher " + clientId + " disconnected");
-
 
         } catch (MqttException me ) {
             System.out.println("reason " + me.getReasonCode());
