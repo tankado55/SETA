@@ -23,6 +23,24 @@ public class Position {
         return new Position(randomX, randomY);
     }
 
+    @Override
+    public boolean equals(Object o){
+        // If the object is compared with itself then return true
+        if (o == this) {
+            return true;
+        }
+
+        /* Check if o is an instance of Complex or not
+          "null instanceof [type]" also returns false */
+        if (!(o instanceof Position)) {
+            return false;
+        }
+
+        Position p = (Position) o;
+
+        return p.x == this.x && p.y == this.y;
+    }
+
     public int getX(){
         return x;
     }

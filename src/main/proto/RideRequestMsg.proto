@@ -1,0 +1,13 @@
+package it.ewlab.ride;
+
+message RideRequestMsg {
+  required string id = 1;
+
+  message PositionMsg {
+    required int32 x = 1;
+    required int32 y = 2;
+  }
+
+  required PositionMsg start = 2;
+  required PositionMsg destination = 3;
+}

@@ -27,7 +27,6 @@ public class Services {
             TaxisRegistrationInfo response = new TaxisRegistrationInfo(AdministratorServer.generateStartingPoint()
                                                                            , otherTaxiList);
 
-
             return Response.ok(response).build();
 
         } catch (IdAlreadyPresentException e) {
