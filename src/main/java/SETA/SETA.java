@@ -38,7 +38,7 @@ public class SETA {
             ++idCounter;
 
             publishRide(ride1.toMsg(), districtTopic + ride1.getDistrict());
-            publishRide(ride2.toMsg(), districtTopic + ride1.getDistrict());
+            publishRide(ride2.toMsg(), districtTopic + ride2.getDistrict());
 
             Thread.sleep(5000);
         }
@@ -57,9 +57,8 @@ public class SETA {
 
             // Set the QoS on the Message
             message.setQos(qos);
-            System.out.println(clientId + " Publishing rideRequest!");
             client.publish(topic, message);
-            System.out.println(clientId + " Message published");
+            System.out.println(clientId + " RideRequest published");
 
             if (client.isConnected())
                 client.disconnect();
