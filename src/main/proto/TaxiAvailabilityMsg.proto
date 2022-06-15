@@ -1,0 +1,5 @@
+package it.ewlab.district;
+
+message TaxiAvailabilityMsg{
+    required int32 district = 1;
+}

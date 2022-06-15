@@ -1,6 +1,7 @@
 package taxiProcess;
 
 import beans.BeansTest;
+import beans.Position;
 import beans.TaxiInfo;
 import beans.TaxisRegistrationInfo;
 import com.google.gson.Gson;
@@ -8,23 +9,39 @@ import com.sun.jersey.api.client.Client;
 import com.sun.jersey.api.client.ClientHandlerException;
 import com.sun.jersey.api.client.ClientResponse;
 import com.sun.jersey.api.client.WebResource;
+import org.eclipse.paho.client.mqttv3.*;
 
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 
+import it.ewlab.district.TaxiAvailabilityMsgOuterClass.*;
+
 public class Taxi {
 
-    private static String id;
-    private static String port;
-    private static String ip = "127.0.0.1";
-    static String SERVERADDRESS = "http://localhost:1337";
+    private static Taxi instance;
 
-    public static void main(String[] args) throws IOException {
-        registerItself();
+    private String id;
+    private String ip = "127.0.0.1";
+    private String port;
+
+    // MQTT
+    String clientId = MqttClient.generateClientId();
+    String ridesTopic = "seta/smartcity/rides/district";
+    String taxiAvailabilityTopic = "seta/smartcity/taxyAvailability";
+    String broker = "tcp://localhost:1883";
+    MqttClient client;
+    int qos = 2;
+    private Position position;
+    private Taxi(){}
+
+    public static Taxi getInstance(){
+        if (instance == null)
+            instance = new Taxi();
+        return  instance;
     }
 
-    private static void registerItself(){
+    public void registerItself(){
         // Taxi send id, ip, port to server
         // it receive list of other taxiInfo and personal starting position generated randomly from server
         BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
@@ -40,22 +57,21 @@ public class Taxi {
         // POST
         String postPath = "/taxis/add";
         TaxiInfo myTaxiInfo = new TaxiInfo(id, ip, port);
-        ClientResponse clientResponse = postRequest(client,SERVERADDRESS+postPath,myTaxiInfo);
+        ClientResponse clientResponse = postRequest(client,Main.SERVERADDRESS+postPath,myTaxiInfo);
         // print results
         System.out.println(clientResponse.toString());
         TaxisRegistrationInfo regInfo = clientResponse.getEntity(TaxisRegistrationInfo.class);
 
-         for (TaxiInfo info : regInfo.getTaxiInfoList()) {
+        for (TaxiInfo info : regInfo.getTaxiInfoList()) {
             System.out.println("taxi " + info.getId() + ", address: " +info.getIp() + ":" + info.getPort());
         }
+        position = new Position(regInfo.getMyStartingPosition().getX(), regInfo.getMyStartingPosition().getY());
         System.out.println("Taxi id: " + id +", My Starting position: "
                 + regInfo.getMyStartingPosition().getX() + ", "
                 + regInfo.getMyStartingPosition().getY());
-
-
     }
 
-    public static ClientResponse postRequest(Client client, String url, TaxiInfo t){
+    private ClientResponse postRequest(Client client, String url, TaxiInfo t){
         WebResource webResource = client.resource(url);
         String input = new Gson().toJson(t);
         try {
@@ -66,4 +82,49 @@ public class Taxi {
         }
     }
 
+    public void subscribeToRideRequests(){
+        if (client == null){
+            try {
+                client = new MqttClient(broker, clientId);
+                MqttConnectOptions connOpts = new MqttConnectOptions();
+                connOpts.setCleanSession(true);
+                // Connect the client
+                System.out.println(clientId + " Connecting Broker " + broker);
+                client.connect(connOpts);
+                client.setCallback(new MqttCallback() {
+                    public void messageArrived(String topic, MqttMessage message) {
+                        // Called when a message arrives from the server that matches any subscription made by the client
+                        System.out.println("Taxi n." + id + " Message arrived on topic " + topic);
+                        // TODO mutual exclusion
+                    }
+                    public void connectionLost(Throwable cause) {
+                        System.out.println(clientId + " Connectionlost! cause:" + cause.getMessage()+ "-  Thread PID: " + Thread.currentThread().getId());
+                    }
+                    public void deliveryComplete(IMqttDeliveryToken token) {
+                        // Not used here
+                    }
+                });
+
+            } catch (MqttException e) {
+                throw new RuntimeException(e);
+            }
+            System.out.println(clientId + " Connected - taxy ID: " + id);
+        }
+        try {
+            client.subscribe(ridesTopic + position.getDistrict(),qos);
+        } catch (MqttException e) {
+            throw new RuntimeException(e);
+        }
+        System.out.println(clientId + " Subscribed to topics : " + ridesTopic + position.getDistrict());
+    }
+
+    public void publishAvailability(){
+        TaxiAvailabilityMsg payload = TaxiAvailabilityMsg.newBuilder().setDistrict(position.getDistrict()).build();
+        MqttMessage message = new MqttMessage(payload.toByteArray());
+        try {
+            client.publish(taxiAvailabilityTopic, message);
+        } catch (MqttException e) {
+            throw new RuntimeException(e);
+        }
+    }
 }

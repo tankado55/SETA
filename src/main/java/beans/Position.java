@@ -56,4 +56,19 @@ public class Position {
     public void setY(int y) {
         this.y = y;
     }
+
+    public int getDistrict(){
+        if (x < 5){
+            if (y < 5)
+                return 1;
+            else
+                return 4;
+        }
+        else{
+            if (y < 5)
+                return 2;
+            else
+                return 3;
+        }
+    }
 }

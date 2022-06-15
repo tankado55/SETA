@@ -1,6 +1,9 @@
 package SETA;
 
+import com.google.protobuf.InvalidProtocolBufferException;
+import it.ewlab.district.TaxiAvailabilityMsgOuterClass.*;
 import org.eclipse.paho.client.mqttv3.*;
+
 import taxiProcess.Taxi;
 
 import java.util.ArrayList;
@@ -16,7 +19,7 @@ public class TaxiAvailabilitySubscriber implements Runnable {
 
     @Override
     public void run() {
-        String broker = "tcp://localhost:1883";
+        // TODO non serve farlo multithread
         String clientId = MqttClient.generateClientId();
         String topic = "seta/smartcity/taxyAvailability";
 
@@ -26,8 +29,14 @@ public class TaxiAvailabilitySubscriber implements Runnable {
 
                 public void messageArrived(String topic, MqttMessage message) {
                     // Called when a message arrives from the server that matches any subscription made by the client
-                    String receivedMessage = new String(message.getPayload());
-                    System.out.println("SETA:  Received a Message! - Taxi availability on discrict " + receivedMessage);
+                    TaxiAvailabilityMsg msg;
+                    try {
+                        msg = TaxiAvailabilityMsg.parseFrom(message.getPayload());
+                    } catch (InvalidProtocolBufferException e) {
+                        throw new RuntimeException(e);
+                    }
+                    rideRequestQueues.get(msg.getDistrict() - 1).addAvailableTaxi();
+                    System.out.println("SETA:  Received a Message! - Taxi availability on discrict " + msg.getDistrict());
                 }
 
                 public void connectionLost(Throwable cause) {
