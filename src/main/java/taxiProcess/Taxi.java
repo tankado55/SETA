@@ -25,6 +25,8 @@ public class Taxi {
     }
 
     private static void registerItself(){
+        // Taxi send id, ip, port to server
+        // it receive list of other taxiInfo and personal starting position generated randomly from server
         BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
         System.out.println("Insert id");
         try {
@@ -50,17 +52,6 @@ public class Taxi {
                 + regInfo.getMyStartingPosition().getX() + ", "
                 + regInfo.getMyStartingPosition().getY());
 
-
-    }
-
-    public static void testPost(){
-        Client client = Client.create();
-        String postPath = "/taxis/add";
-        TaxiInfo myTaxiInfo = new TaxiInfo("125676873", "localhost", "50200");
-        ClientResponse clientResponse = postRequest(client,SERVERADDRESS+postPath,myTaxiInfo);
-        BeansTest regInfo = clientResponse.getEntity(BeansTest.class);
-
-            System.out.println("taxi: " + regInfo.getX());
 
     }
 
