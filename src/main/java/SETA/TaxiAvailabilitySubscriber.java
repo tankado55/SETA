@@ -8,7 +8,7 @@ import taxiProcess.Taxi;
 
 import java.util.ArrayList;
 
-public class TaxiAvailabilitySubscriber implements Runnable {
+public class TaxiAvailabilitySubscriber {
     ArrayList<RideRequestQueue> rideRequestQueues;
     MqttClient client;
 
@@ -17,9 +17,7 @@ public class TaxiAvailabilitySubscriber implements Runnable {
         this.client = client;
     }
 
-    @Override
-    public void run() {
-        // TODO non serve farlo multithread
+    public void subscribe() {
         String clientId = MqttClient.generateClientId();
         String topic = "seta/smartcity/taxyAvailability";
 

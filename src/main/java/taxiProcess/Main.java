@@ -11,6 +11,7 @@ import com.sun.jersey.api.client.WebResource;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.util.Scanner;
 
 public class Main {
 
@@ -21,12 +22,14 @@ public class Main {
         Taxi taxi = Taxi.getInstance();
         taxi.registerItself();
         taxi.subscribeToRideRequests();
+        // TODO bisognerebbe sottoscriversi a un topic dove SETA dichiara di essersi avviato, in questo caso ripubblico le availaability
         taxi.publishAvailability();
 
+        // ciclo provvisorio
         System.out.println("\n ***  Press a random key to exit *** \n");
         Scanner command = new Scanner(System.in);
         command.nextLine();
-        client.disconnect();
+        //client.disconnect();
 
 
     }

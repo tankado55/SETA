@@ -42,7 +42,7 @@ public class SETA {
             new Thread(rideRequestPublisher).start();
         }
         // Inizialize subcriber that work with queues
-        new TaxiAvailabilitySubscriber(rideRequestQueues, client).run();
+        new TaxiAvailabilitySubscriber(rideRequestQueues, client).subscribe();
 
         // generating and publish two random rides every 5 seconds
         int idCounter = 0;
