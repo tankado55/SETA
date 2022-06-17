@@ -36,6 +36,7 @@ public class RideRequestQueue {
         if(rides.size() > 0 && availableTaxi > 0){
             ride = rides.get(0);
             rides.remove(0);
+            --availableTaxi;
         }
 
         return ride;

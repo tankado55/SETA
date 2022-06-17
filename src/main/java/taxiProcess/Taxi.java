@@ -9,6 +9,8 @@ import com.sun.jersey.api.client.Client;
 import com.sun.jersey.api.client.ClientHandlerException;
 import com.sun.jersey.api.client.ClientResponse;
 import com.sun.jersey.api.client.WebResource;
+import io.grpc.Server;
+import io.grpc.ServerBuilder;
 import org.eclipse.paho.client.mqttv3.*;
 
 import java.io.BufferedReader;
@@ -16,6 +18,8 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 
 import it.ewlab.district.TaxiAvailabilityMsgOuterClass.*;
+
+import static java.lang.Math.sqrt;
 
 public class Taxi {
 
@@ -39,6 +43,13 @@ public class Taxi {
         if (instance == null)
             instance = new Taxi();
         return  instance;
+    }
+
+    public void init(){
+        registerItself();
+        RideHandler.startGrpcServices(Integer.valueOf(port));
+        subscribeToRideRequests();
+        publishAvailability();
     }
 
     public void registerItself(){
@@ -95,7 +106,13 @@ public class Taxi {
                     public void messageArrived(String topic, MqttMessage message) {
                         // Called when a message arrives from the server that matches any subscription made by the client
                         System.out.println("Taxi n." + id + " Message arrived on topic " + topic);
-                        // TODO mutual exclusion
+                        if (ridesTopic.indexOf(topic) != -1){
+                            // gestire la mutual exclusion
+                            // serve la lista dei taxi in questo momento
+                            // servizio che risponda OK
+                            // un taxi può partecipare a due mutual exclusion? si, quando ne vince una rilascia l'altra
+                            // se uno sta facendo la ride, risponde sempre ok, quindi per forza boolean
+                        }
                     }
                     public void connectionLost(Throwable cause) {
                         System.out.println(clientId + " Connectionlost! cause:" + cause.getMessage()+ "-  Thread PID: " + Thread.currentThread().getId());
@@ -127,4 +144,10 @@ public class Taxi {
             throw new RuntimeException(e);
         }
     }
+
+    public double getDistance(Position pos){
+        return sqrt((pos.getY() - position.getY()) * (pos.getY() - position.getY()) + (pos.getX() - position.getX()) * (pos.getX() - position.getX()));
+    }
+
+
 }

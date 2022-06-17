@@ -1,5 +1,7 @@
 package beans;
 
+import it.ewlab.ride.RideRequestMsgOuterClass;
+
 import javax.xml.bind.annotation.XmlRootElement;
 import java.util.concurrent.ThreadLocalRandom;
 
@@ -15,6 +17,11 @@ public class Position {
     public Position (int x, int y){
         this.x = x;
         this.y = y;
+    }
+
+    public Position(RideRequestMsgOuterClass.RideRequestMsg.PositionMsg msg) {
+        this.x = msg.getX();
+        this.y = msg.getY();
     }
 
     public static Position generateRandomPosition(int maxX, int maxY){

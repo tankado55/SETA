@@ -20,10 +20,13 @@ public class Main {
 
     public static void main(String[] args) throws IOException {
         Taxi taxi = Taxi.getInstance();
-        taxi.registerItself();
-        taxi.subscribeToRideRequests();
+        taxi.init();
+
+
         // TODO bisognerebbe sottoscriversi a un topic dove SETA dichiara di essersi avviato, in questo caso ripubblico le availaability
-        taxi.publishAvailability();
+
+        // elezione
+        // pubblica di nuovo availability e si sottoscrive
 
         // ciclo provvisorio
         System.out.println("\n ***  Press a random key to exit *** \n");

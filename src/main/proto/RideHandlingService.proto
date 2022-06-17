@@ -1,0 +1,24 @@
+syntax = "proto3";
+package it.ewlab.ride;
+
+import "RideRequestMsg.proto";
+
+// Request payload
+message RideHandlingRequest {
+  RideRequestMsg rideRequestMsg = 1;
+  string taxiId = 2;
+  double distance = 3;
+  int32 battery = 4;
+}
+
+message RideHandlingReply {
+  string rideRequestId = 1;
+  bool discard = 2;
+}
+
+// Defining a Service, a Service can have multiple RPC operations
+service RideHandlingService {
+
+  rpc RideHandling(RideHandlingRequest) returns (RideHandlingReply);
+
+}
