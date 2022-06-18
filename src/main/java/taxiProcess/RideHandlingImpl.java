@@ -12,5 +12,26 @@ public class RideHandlingImpl extends RideHandlingServiceGrpc.RideHandlingServic
 
         Taxi instance = Taxi.getInstance();
         double myDistance = instance.getDistance(new Position(request.getRideRequestMsg().getStart()));
+
+        if (request.getDistance() < myDistance){
+            RideHandlingReply response = RideHandlingReply.newBuilder().setDiscard(false).build();
+            responseObserver.onNext(response);
+            responseObserver.onCompleted();
+            return;
+        }
+        else if (request.getDistance() == myDistance){
+            if (request.getBattery() < instance.getBattery){
+                RideHandlingReply response = RideHandlingReply.newBuilder().setDiscard(false).build();
+                responseObserver.onNext(response);
+                responseObserver.onCompleted();
+                return;
+            }
+            else if (request.getBattery() == instance.getBattery){
+                if (request.getTaxiId() < instance.getId){
+
+                }
+            }
+        }
+
     }
 }

@@ -36,6 +36,8 @@ public class Taxi {
     String broker = "tcp://localhost:1883";
     MqttClient client;
     int qos = 2;
+
+    // Taxi Data
     private Position position;
     private Taxi(){}
 
