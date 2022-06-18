@@ -19,6 +19,6 @@ message RideHandlingReply {
 // Defining a Service, a Service can have multiple RPC operations
 service RideHandlingService {
 
-  rpc RideHandling(RideHandlingRequest) returns (RideHandlingReply);
+  rpc startRideHandling(RideHandlingRequest) returns (RideHandlingReply);
 
 }

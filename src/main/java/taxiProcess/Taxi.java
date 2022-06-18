@@ -1,21 +1,34 @@
 package taxiProcess;
 
+import SETA.RideRequest;
 import beans.BeansTest;
 import beans.Position;
 import beans.TaxiInfo;
 import beans.TaxisRegistrationInfo;
 import com.google.gson.Gson;
+import com.google.protobuf.InvalidProtocolBufferException;
 import com.sun.jersey.api.client.Client;
 import com.sun.jersey.api.client.ClientHandlerException;
 import com.sun.jersey.api.client.ClientResponse;
 import com.sun.jersey.api.client.WebResource;
+import io.grpc.ManagedChannel;
+import io.grpc.ManagedChannelBuilder;
 import io.grpc.Server;
 import io.grpc.ServerBuilder;
+import io.grpc.stub.StreamObserver;
+import it.ewlab.ride.RideHandlingServiceGrpc;
+import it.ewlab.ride.RideHandlingServiceGrpc.*;
+import it.ewlab.ride.RideHandlingServiceOuterClass.*;
+import it.ewlab.ride.RideRequestMsgOuterClass.*;
 import org.eclipse.paho.client.mqttv3.*;
 
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 import it.ewlab.district.TaxiAvailabilityMsgOuterClass.*;
 
@@ -40,6 +53,12 @@ public class Taxi {
     // Taxi Data
     private Position position;
     private Taxi(){}
+    private int  battery = 100;
+    private boolean busy;
+
+    // Grpc
+    private Map<String, StreamObserver<RideHandlingReply>> delayedRideResponse = new HashMap<String, StreamObserver<RideHandlingReply>>();
+    private List<TaxiInfo> taxiContacts = new ArrayList<TaxiInfo>();
 
     public static Taxi getInstance(){
         if (instance == null)
@@ -52,6 +71,18 @@ public class Taxi {
         RideHandler.startGrpcServices(Integer.valueOf(port));
         subscribeToRideRequests();
         publishAvailability();
+    }
+
+    public String getId() {
+        return id;
+    }
+
+    public int getBattery() {
+        return battery;
+    }
+
+    public void addDelayedResponse(String rideRequestId, StreamObserver<RideHandlingReply> obs){
+        delayedRideResponse.put(rideRequestId, obs);
     }
 
     public void registerItself(){
@@ -109,6 +140,57 @@ public class Taxi {
                         // Called when a message arrives from the server that matches any subscription made by the client
                         System.out.println("Taxi n." + id + " Message arrived on topic " + topic);
                         if (ridesTopic.indexOf(topic) != -1){
+                            List<TaxiInfo> currentTaxiContacts = new ArrayList<TaxiInfo>(taxiContacts);
+                            RideAcquisition rideAcquisition = null;
+                            RideRequest ride = null;
+                            try {
+                                ride = new RideRequest(RideRequestMsg.parseFrom(message.getPayload()));
+                                rideAcquisition= new RideAcquisition(currentTaxiContacts.size(), ride);
+                            } catch (InvalidProtocolBufferException e) {
+                                e.printStackTrace();
+                            }
+                            List<Thread> requestThreads = new ArrayList<Thread>();
+                            Double distanceFromRide = getDistance(ride.getStartingPosition());
+                            RideAcquisition finalRideAcquisition = rideAcquisition;
+                            RideRequest finalRide = ride;
+                            for (TaxiInfo taxiContact : currentTaxiContacts){
+                                String target = taxiContact.getIp() + taxiContact.getPort();
+                                // a new thread is launched for each message to send
+                                Thread requestThread = new Thread(() -> {
+                                    final ManagedChannel channel = ManagedChannelBuilder.forTarget(target).usePlaintext().build();
+
+                                    //creating a blocking stub on the channel
+                                    RideHandlingServiceBlockingStub stub = RideHandlingServiceGrpc.newBlockingStub(channel);
+
+                                    //creating the HelloResponse object which will be provided as input to the RPC method
+                                    RideHandlingRequest request = RideHandlingRequest.newBuilder()
+                                            .setRideRequestMsg(finalRide.toMsg())
+                                            .setDistance(distanceFromRide)
+                                            .setBattery(battery)
+                                            .setTaxiId(id).build();
+
+                                    RideHandlingReply response = stub.startRideHandling(request);
+
+                                    if (!response.getDiscard()){
+                                        finalRideAcquisition.acked();
+                                    }
+
+                                    //closing the channel
+                                    channel.shutdown();
+                                });
+                                requestThread.start();
+                                requestThreads.add(requestThread);
+                            }
+                            for (Thread t : requestThreads){
+                                try {
+                                    t.join();
+                                } catch (InterruptedException e) {
+                                    e.printStackTrace();
+                                }
+                            }
+                            if (finalRideAcquisition.getAckToReceive() == 0){
+                                handleRide(finalRide);
+                            }
                             // gestire la mutual exclusion
                             // serve la lista dei taxi in questo momento
                             // servizio che risponda OK
@@ -134,7 +216,53 @@ public class Taxi {
         } catch (MqttException e) {
             throw new RuntimeException(e);
         }
-        System.out.println(clientId + " Subscribed to topics : " + ridesTopic + position.getDistrict());
+        System.out.println("taxi n. " + id + " Subscribed to topics : " + ridesTopic + position.getDistrict());
+    }
+
+    private void unSubscribeToRideRequests(){
+        try {
+            client.unsubscribe(ridesTopic + position.getDistrict());
+        } catch (MqttException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private void handleRide(RideRequest ride){
+
+        System.out.println("Taxi n. " + id + "taking charge of ride request n. " + ride.getId());
+
+        // free al other rides
+        RideHandlingReply response = RideHandlingReply.newBuilder().setDiscard(true).build();
+        StreamObserver<RideHandlingReply> responseObserver = delayedRideResponse.get(ride.getId());
+        responseObserver.onNext(response);
+        responseObserver.onCompleted();
+        delayedRideResponse.remove(ride.getId());
+
+        response = RideHandlingReply.newBuilder().setDiscard(false).build();
+        for (StreamObserver<RideHandlingReply> observer : delayedRideResponse.values()){
+            responseObserver.onNext(response);
+            responseObserver.onCompleted();
+        }
+
+        // make the ride
+        busy = true;
+        try {
+            Thread.sleep(5);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+
+        if (ride.getStartingPosition().getDistrict() != ride.getDestinationPosition().getDistrict()){
+            unSubscribeToRideRequests();
+            position = ride.getDestinationPosition();
+            subscribeToRideRequests();
+        }
+        else{
+            position = ride.getDestinationPosition();
+        }
+        busy = false;
+        publishAvailability();
+
     }
 
     public void publishAvailability(){
@@ -150,6 +278,10 @@ public class Taxi {
     public double getDistance(Position pos){
         return sqrt((pos.getY() - position.getY()) * (pos.getY() - position.getY()) + (pos.getX() - position.getX()) * (pos.getX() - position.getX()));
     }
-
-
 }
+
+// TODO presentazione a alrti taxi
+// condizioni dentro a ridehandlingimpl
+// ricarica
+// statistiche
+// client
