@@ -1,5 +1,7 @@
 package beans;
 
+import it.ewlab.ride.GreetingsServiceOuterClass;
+
 import javax.xml.bind.annotation.XmlRootElement;
 
 @XmlRootElement
@@ -14,6 +16,12 @@ public class TaxiInfo {
         this.id = id;
         this.ip = ip;
         this.port = port;
+    }
+
+    public TaxiInfo(GreetingsServiceOuterClass.GreetingsRequest.TaxiInfoMsg taxiInfoMsg) {
+        id = taxiInfoMsg.getId();
+        ip = taxiInfoMsg.getIp();
+        port = String.valueOf(taxiInfoMsg.getPort());
     }
 
     public String getId() {

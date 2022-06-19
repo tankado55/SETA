@@ -1,0 +1,21 @@
+syntax = "proto3";
+package it.ewlab.ride;
+
+message GreetingsRequest{
+  message TaxiInfoMsg {
+    string id = 1;
+    string ip = 2;
+    int32 port = 3;
+  }
+
+  TaxiInfoMsg taxiInfoMsg= 1;
+}
+
+message  GreetingsResponse{
+  bool ok = 1;
+}
+
+service GreetingsService {
+  rpc greeting (GreetingsRequest) returns (GreetingsResponse);
+  rpc bye (GreetingsRequest) returns (GreetingsResponse);
+}

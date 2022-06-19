@@ -38,7 +38,7 @@ public class SETA {
         for (int i = 0; i < districtCount; ++i){
             RideRequestQueue rideRequestQueue = new RideRequestQueue();
             rideRequestQueues.add(rideRequestQueue);
-            RideRequestPublisher rideRequestPublisher= new RideRequestPublisher(rideRequestQueue, client, districtTopic + i + 1);
+            RideRequestPublisher rideRequestPublisher= new RideRequestPublisher(rideRequestQueue, client, districtTopic + (i + 1));
             new Thread(rideRequestPublisher).start();
         }
         // Inizialize subcriber that work with queues

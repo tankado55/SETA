@@ -29,9 +29,13 @@ public class Main {
         // pubblica di nuovo availability e si sottoscrive
 
         // ciclo provvisorio
-        System.out.println("\n ***  Press a random key to exit *** \n");
+        // System.out.println("\n ***  Press a random key to exit *** \n");
         Scanner command = new Scanner(System.in);
-        command.nextLine();
+        while (true){
+            command.nextLine();
+            System.out.println(command);
+        }
+
         //client.disconnect();
 
 

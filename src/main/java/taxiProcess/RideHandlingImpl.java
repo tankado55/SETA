@@ -13,8 +13,6 @@ public class RideHandlingImpl extends RideHandlingServiceGrpc.RideHandlingServic
         Taxi taxi = Taxi.getInstance();
         double myDistance = taxi.getDistance(new Position(request.getRideRequestMsg().getStart()));
 
-        // TODO casi in cui il taxi è impegnato o è in carica
-
         if (request.getDistance() < myDistance){
             RideHandlingReply response = RideHandlingReply.newBuilder().setDiscard(false).build();
             responseObserver.onNext(response);
@@ -37,7 +35,10 @@ public class RideHandlingImpl extends RideHandlingServiceGrpc.RideHandlingServic
                 }
             }
         }
-        // here the request must be delayed to respond OK or discard later
+
         taxi.addDelayedResponse(request.getRideRequestMsg().getId(), responseObserver);
+
+        // here the request must be delayed to respond OK or discard later
+
     }
 }
