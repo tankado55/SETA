@@ -59,7 +59,7 @@ public class Taxi {
 
 
     // Grpc
-    private Map<String, StreamObserver<RideHandlingReply>> delayedRideResponse = new HashMap<String, StreamObserver<RideHandlingReply>>();
+    private Map<String, StreamObserver<RideHandlingReply>> delayedRideResponses = new HashMap<String, StreamObserver<RideHandlingReply>>();
     private List<TaxiInfo> taxiContacts = new ArrayList<TaxiInfo>();
     public Object busyLock = new Object();
 
@@ -91,14 +91,19 @@ public class Taxi {
 
     public void addDelayedResponse(String rideRequestId, StreamObserver<RideHandlingReply> obs){
 
-        delayedRideResponse.put(rideRequestId, obs);
-        synchronized (busyLock){
-            if (busy){
-                RideHandlingReply response = RideHandlingReply.newBuilder().setDiscard(false).build();
-                obs.onNext(response);
-                obs.onCompleted();
+            synchronized (busyLock){
+                if (busy){
+                    RideHandlingReply response = RideHandlingReply.newBuilder().setDiscard(false).build();
+                    obs.onNext(response);
+                    obs.onCompleted();
+                }
+                else{
+                    delayedRideResponses.put(rideRequestId, obs);
+                }
             }
-        }
+
+
+
     }
 
     public void registerItself(){
@@ -278,13 +283,14 @@ public class Taxi {
     private void unSubscribeToRideRequests(){
         try {
             client.unsubscribe(ridesTopic + position.getDistrict());
+            System.out.println("Unsubscribed from topic: " + ridesTopic + position.getDistrict());
         } catch (MqttException e) {
             e.printStackTrace();
         }
     }
 
     private void handleRide(RideRequest ride){
-
+        unSubscribeToRideRequests();
         synchronized (busyLock){
             busy = true;
         }
@@ -293,39 +299,45 @@ public class Taxi {
 
         // free al other rides
         RideHandlingReply response = RideHandlingReply.newBuilder().setDiscard(true).build();
-        StreamObserver<RideHandlingReply> responseObserver = delayedRideResponse.get(ride.getId());
+        StreamObserver<RideHandlingReply> responseObserver = delayedRideResponses.get(ride.getId());
         if (responseObserver != null){
             responseObserver.onNext(response);
             responseObserver.onCompleted();
-            delayedRideResponse.remove(ride.getId());
+            delayedRideResponses.remove(ride.getId());
         }
 
 
         response = RideHandlingReply.newBuilder().setDiscard(false).build();
-        for (StreamObserver<RideHandlingReply> observer : delayedRideResponse.values()){
+        for (String rideId : delayedRideResponses.keySet()){
+            StreamObserver<RideHandlingReply> observer = delayedRideResponses.get(rideId);
             observer.onNext(response);
             observer.onCompleted();
         }
+        delayedRideResponses.clear();
 
         // make the ride
         try {
-            sleep(5);
+            sleep(5000);
         } catch (InterruptedException e) {
             e.printStackTrace();
         }
 
+        System.out.println("Taxi n." + id + ", ride " + ride.getId() + " Completed!");
         if (ride.getStartingPosition().getDistrict() != ride.getDestinationPosition().getDistrict()){
-            unSubscribeToRideRequests();
+            //unSubscribeToRideRequests();
             position = ride.getDestinationPosition();
-            subscribeToRideRequests();
+            System.out.println("Moved to "+ position.getDistrict());
+
         }
         else{
             position = ride.getDestinationPosition();
         }
+        subscribeToRideRequests();
+
         synchronized (busyLock){
             busy = false;
         }
-        System.out.println("Taxi n." + id + ", ride " + ride.getId() + " Completed!");
+
         publishAvailability();
 
     }

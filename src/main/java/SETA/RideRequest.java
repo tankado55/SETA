@@ -39,7 +39,7 @@ public class RideRequest {
                         .setX(startingPosition.getX())
                         .setY(startingPosition.getY()))
                 .setDestination(RideRequestMsg.PositionMsg.newBuilder()
-                        .setX(startingPosition.getX())
+                        .setX(destinationPosition.getX())
                         .setY(destinationPosition.getY()))
                 .build();
     }
