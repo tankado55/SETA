@@ -81,6 +81,10 @@ public class Taxi {
         publishAvailability();
     }
 
+    public Position getPosition() {
+        return position;
+    }
+
     public String getId() {
         return id;
     }
@@ -125,10 +129,11 @@ public class Taxi {
         ClientResponse clientResponse = postRequest(client,Main.SERVERADDRESS+postPath,myTaxiInfo);
 
         TaxisRegistrationInfo regInfo = clientResponse.getEntity(TaxisRegistrationInfo.class);
-
-        for (TaxiInfo info : regInfo.getTaxiInfoList()) {
-            System.out.println("taxi " + info.getId() + ", address: " +info.getIp() + ":" + info.getPort());
-            taxiContacts.add(info);
+        synchronized (taxiContacts){
+            for (TaxiInfo info : regInfo.getTaxiInfoList()) {
+                System.out.println("taxi " + info.getId() + ", address: " +info.getIp() + ":" + info.getPort());
+                taxiContacts.add(info);
+            }
         }
         position = new Position(regInfo.getMyStartingPosition().getX(), regInfo.getMyStartingPosition().getY());
         System.out.println("Taxi id: " + id +", My Starting position: "
@@ -187,10 +192,11 @@ public class Taxi {
                 // Connect the client
                 System.out.println(clientId + " Connecting Broker " + broker);
                 client.connect(connOpts);
+                //new Thread(() -> {}).start();
                 client.setCallback(new MqttCallback() {
                     public void messageArrived(String topic, MqttMessage message) {
                         // Called when a message arrives from the server that matches any subscription made by the client
-                        System.out.println("Taxi n." + id + " Message arrived on topic " + topic);
+
                         if (topic.indexOf(ridesTopic) != -1){
 
                             RideAcquisition rideAcquisition = null;
@@ -199,6 +205,7 @@ public class Taxi {
                                 try {
                                     ride = new RideRequest(RideRequestMsg.parseFrom(message.getPayload()));
                                     rideAcquisition= new RideAcquisition(taxiContacts.size(), ride);
+                                    System.out.println("*** Taxi n." + id + " Ride " + ride.getId() + " arrived on topic " + topic + "***");
                                 } catch (InvalidProtocolBufferException e) {
                                     e.printStackTrace();
                                 }
@@ -221,6 +228,7 @@ public class Taxi {
                                                 .setDistance(distanceFromRide)
                                                 .setBattery(battery)
                                                 .setTaxiId(id).build();
+                                        System.out.println("I want Ride " + finalRide.getId() + " , my distance: " + distanceFromRide);
 
                                         RideHandlingReply response = stub.startRideHandling(request);
 
@@ -243,6 +251,9 @@ public class Taxi {
                                 }
                                 if (finalRideAcquisition.getAckToReceive() <= 0){
                                     handleRide(finalRide);
+                                }
+                                else {
+                                    System.out.println("\u001B[33m" + "Ride " + ride.getId() + " acquisited from another taxi" + "\u001B[0m");
                                 }
                             }
 

@@ -13,6 +13,15 @@ public class RideHandlingImpl extends RideHandlingServiceGrpc.RideHandlingServic
         Taxi taxi = Taxi.getInstance();
         double myDistance = taxi.getDistance(new Position(request.getRideRequestMsg().getStart()));
 
+        synchronized (taxi.getPosition()){
+            Position start = new Position(request.getRideRequestMsg().getStart());
+            if (taxi.getPosition().getDistrict() != start.getDistrict()){
+                RideHandlingReply response = RideHandlingReply.newBuilder().setDiscard(false).build();
+                responseObserver.onNext(response);
+                responseObserver.onCompleted();
+                return;
+            }
+        }
         if (request.getDistance() < myDistance){
             RideHandlingReply response = RideHandlingReply.newBuilder().setDiscard(false).build();
             responseObserver.onNext(response);

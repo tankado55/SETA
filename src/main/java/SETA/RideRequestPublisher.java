@@ -28,7 +28,7 @@ public class RideRequestPublisher implements Runnable {
             } catch (MqttException e) {
                 throw new RuntimeException(e);
             }
-            System.out.println(" RideRequest published, topic: " + topic);
+            System.out.println(" RideRequest " + ride.getId() + " published, topic: " + topic);
         }
     }
 }
