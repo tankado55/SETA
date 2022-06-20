@@ -43,19 +43,4 @@ public class RideRequest {
                         .setY(destinationPosition.getY()))
                 .build();
     }
-
-    public int getDistrict(){
-        if (startingPosition.getX() < 5){
-            if (startingPosition.getY() < 5)
-                return 1;
-            else
-                return 4;
-        }
-        else{
-            if (startingPosition.getY() < 5)
-                return 2;
-            else
-                return 3;
-        }
-    }
 }

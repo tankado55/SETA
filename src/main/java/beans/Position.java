@@ -25,8 +25,8 @@ public class Position {
     }
 
     public static Position generateRandomPosition(int maxX, int maxY){
-        int randomX = ThreadLocalRandom.current().nextInt(0, maxX);
-        int randomY = ThreadLocalRandom.current().nextInt(0, maxY);
+        int randomX = (int) (Math.random()* maxX);
+        int randomY = (int) (Math.random()* maxX);
         return new Position(randomX, randomY);
     }
 
@@ -69,11 +69,11 @@ public class Position {
             if (y < 5)
                 return 1;
             else
-                return 4;
+                return 2;
         }
         else{
             if (y < 5)
-                return 2;
+                return 4;
             else
                 return 3;
         }

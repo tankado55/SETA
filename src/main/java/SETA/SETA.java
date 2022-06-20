@@ -52,8 +52,8 @@ public class SETA {
             RideRequest ride2 = generateRandomRide(Integer.toString(idCounter));
             ++idCounter;
 
-            rideRequestQueues.get(ride1.getDistrict() - 1).put(ride1);
-            rideRequestQueues.get(ride2.getDistrict() - 1).put(ride2);
+            rideRequestQueues.get(ride1.getStartingPosition().getDistrict() - 1).put(ride1);
+            rideRequestQueues.get(ride2.getStartingPosition().getDistrict() - 1).put(ride2);
 
             Thread.sleep(5000);
         }

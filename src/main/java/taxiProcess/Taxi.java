@@ -118,8 +118,7 @@ public class Taxi {
         String postPath = "/taxis/add";
         TaxiInfo myTaxiInfo = new TaxiInfo(id, ip, port);
         ClientResponse clientResponse = postRequest(client,Main.SERVERADDRESS+postPath,myTaxiInfo);
-        // print results
-        System.out.println(clientResponse.toString());
+
         TaxisRegistrationInfo regInfo = clientResponse.getEntity(TaxisRegistrationInfo.class);
 
         for (TaxiInfo info : regInfo.getTaxiInfoList()) {
@@ -131,7 +130,7 @@ public class Taxi {
                 + regInfo.getMyStartingPosition().getX() + ", "
                 + regInfo.getMyStartingPosition().getY());
         for (TaxiInfo contact : taxiContacts){
-            String target = contact.getIp() + contact.getPort();
+            String target = contact.getIp() + ":" + contact.getPort();
             final ManagedChannel channel = ManagedChannelBuilder.forTarget(target).usePlaintext().build();
 
             //creating a blocking stub on the channel
@@ -203,7 +202,7 @@ public class Taxi {
                                 RideAcquisition finalRideAcquisition = rideAcquisition;
                                 RideRequest finalRide = ride;
                                 for (TaxiInfo taxiContact : taxiContacts){
-                                    String target = taxiContact.getIp() + taxiContact.getPort();
+                                    String target = taxiContact.getIp() + ":" + taxiContact.getPort();
                                     // a new thread is launched for each message to send
                                     Thread requestThread = new Thread(() -> {
                                         final ManagedChannel channel = ManagedChannelBuilder.forTarget(target).usePlaintext().build();
@@ -267,8 +266,9 @@ public class Taxi {
     public void subscribeToRideRequests(){
 
         try {
-            client.subscribe(ridesTopic + position.getDistrict(),qos);
-            System.out.println("taxi n. " + id + " Subscribed to topics : " + ridesTopic + position.getDistrict());
+            int district = position.getDistrict();
+            client.subscribe(ridesTopic + district,qos);
+            System.out.println("taxi n. " + id + " Subscribed to topics : " + ridesTopic + district);
         } catch (MqttException e) {
             throw new RuntimeException(e);
         }
@@ -325,6 +325,7 @@ public class Taxi {
         synchronized (busyLock){
             busy = false;
         }
+        System.out.println("Taxi n." + id + ", ride " + ride.getId() + " Completed!");
         publishAvailability();
 
     }
@@ -344,7 +345,7 @@ public class Taxi {
     }
 }
 
-// TODO presentazione a alrti taxi
+// TODO
 // test 2 taxi
 // ricarica
 // statistiche
