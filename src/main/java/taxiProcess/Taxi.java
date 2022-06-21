@@ -81,10 +81,6 @@ public class Taxi {
         publishAvailability();
     }
 
-    public Position getPosition() {
-        return position;
-    }
-
     public String getId() {
         return id;
     }
@@ -95,16 +91,16 @@ public class Taxi {
 
     public void addDelayedResponse(String rideRequestId, StreamObserver<RideHandlingReply> obs){
 
-            synchronized (busyLock){
-                if (busy){
-                    RideHandlingReply response = RideHandlingReply.newBuilder().setDiscard(false).build();
-                    obs.onNext(response);
-                    obs.onCompleted();
-                }
-                else{
-                    delayedRideResponses.put(rideRequestId, obs);
-                }
+        synchronized (busyLock){
+            if (busy){
+                RideHandlingReply response = RideHandlingReply.newBuilder().setDiscard(false).build();
+                obs.onNext(response);
+                obs.onCompleted();
             }
+            else{
+                delayedRideResponses.put(rideRequestId, obs);
+            }
+        }
 
 
 
@@ -129,11 +125,10 @@ public class Taxi {
         ClientResponse clientResponse = postRequest(client,Main.SERVERADDRESS+postPath,myTaxiInfo);
 
         TaxisRegistrationInfo regInfo = clientResponse.getEntity(TaxisRegistrationInfo.class);
-        synchronized (taxiContacts){
-            for (TaxiInfo info : regInfo.getTaxiInfoList()) {
-                System.out.println("taxi " + info.getId() + ", address: " +info.getIp() + ":" + info.getPort());
-                taxiContacts.add(info);
-            }
+
+        for (TaxiInfo info : regInfo.getTaxiInfoList()) {
+            System.out.println("taxi " + info.getId() + ", address: " +info.getIp() + ":" + info.getPort());
+            taxiContacts.add(info);
         }
         position = new Position(regInfo.getMyStartingPosition().getX(), regInfo.getMyStartingPosition().getY());
         System.out.println("Taxi id: " + id +", My Starting position: "
@@ -193,7 +188,6 @@ public class Taxi {
                 System.out.println(clientId + " Connecting Broker " + broker);
                 client.connect(connOpts);
                 client.setCallback(new MqttCallback() {
-                    new Thread(() -> {}).start();
                     public void messageArrived(String topic, MqttMessage message) {
                         // Called when a message arrives from the server that matches any subscription made by the client
 
@@ -201,61 +195,60 @@ public class Taxi {
 
                             RideAcquisition rideAcquisition = null;
                             RideRequest ride = null;
-                            synchronized (taxiContacts){
+                            List<TaxiInfo> currentContacts;
+                            synchronized (taxiContacts) {
                                 try {
                                     ride = new RideRequest(RideRequestMsg.parseFrom(message.getPayload()));
-                                    rideAcquisition= new RideAcquisition(taxiContacts.size(), ride);
-                                    System.out.println("*** Taxi n." + id + " Ride " + ride.getId() + " arrived on topic " + topic + "***");
+                                    rideAcquisition = new RideAcquisition(taxiContacts.size(), ride);
+                                    System.out.println("Ride " + ride.getId() + " arrived on topic " + topic);
                                 } catch (InvalidProtocolBufferException e) {
                                     e.printStackTrace();
                                 }
-                                List<Thread> requestThreads = new ArrayList<Thread>();
-                                Double distanceFromRide = getDistance(ride.getStartingPosition());
-                                RideAcquisition finalRideAcquisition = rideAcquisition;
-                                RideRequest finalRide = ride;
-                                for (TaxiInfo taxiContact : taxiContacts){
-                                    String target = taxiContact.getIp() + ":" + taxiContact.getPort();
-                                    // a new thread is launched for each message to send
-                                    Thread requestThread = new Thread(() -> {
-                                        final ManagedChannel channel = ManagedChannelBuilder.forTarget(target).usePlaintext().build();
+                                currentContacts = new ArrayList<>(taxiContacts);
+                            }
+                            List<Thread> requestThreads = new ArrayList<Thread>();
+                            RideRequest finalRide = ride;
+                            RideAcquisition finalRideAcquisition = rideAcquisition;
+                            Double distanceFromRide = getDistance(ride.getStartingPosition());
+                            for (TaxiInfo taxiContact : currentContacts){
+                                String target = taxiContact.getIp() + ":" + taxiContact.getPort();
+                                // a new thread is launched for each message to send
+                                Thread requestThread = new Thread(() -> {
+                                    final ManagedChannel channel = ManagedChannelBuilder.forTarget(target).usePlaintext().build();
 
-                                        //creating a blocking stub on the channel
-                                        RideHandlingServiceBlockingStub stub = RideHandlingServiceGrpc.newBlockingStub(channel);
+                                    //creating a blocking stub on the channel
+                                    RideHandlingServiceBlockingStub stub = RideHandlingServiceGrpc.newBlockingStub(channel);
 
-                                        //creating the HelloResponse object which will be provided as input to the RPC method
-                                        RideHandlingRequest request = RideHandlingRequest.newBuilder()
-                                                .setRideRequestMsg(finalRide.toMsg())
-                                                .setDistance(distanceFromRide)
-                                                .setBattery(battery)
-                                                .setTaxiId(id).build();
-                                        System.out.println("I want Ride " + finalRide.getId() + " , my distance: " + distanceFromRide);
+                                    //creating the HelloResponse object which will be provided as input to the RPC method
+                                    RideHandlingRequest request = RideHandlingRequest.newBuilder()
+                                            .setRideRequestMsg(finalRide.toMsg())
+                                            .setDistance(distanceFromRide)
+                                            .setBattery(battery)
+                                            .setTaxiId(id).build();
 
-                                        RideHandlingReply response = stub.startRideHandling(request);
+                                    RideHandlingReply response = stub.startRideHandling(request);
 
-                                        if (!response.getDiscard()){
-                                            finalRideAcquisition.acked();
-                                        }
-
-                                        //closing the channel
-                                        channel.shutdown();
-                                    });
-                                    requestThread.start();
-                                    requestThreads.add(requestThread);// save the threads to make the join
-                                }
-                                for (Thread t : requestThreads){
-                                    try {
-                                        t.join(); //necessaria per attendere le delayedReply
-                                    } catch (InterruptedException e) {
-                                        e.printStackTrace();
+                                    if (!response.getDiscard()){
+                                        finalRideAcquisition.acked();
                                     }
-                                }
-                                if (finalRideAcquisition.getAckToReceive() <= 0){
-                                    handleRide(finalRide);
-                                }
-                                else {
-                                    System.out.println("\u001B[33m" + "Ride " + ride.getId() + " acquisited from another taxi" + "\u001B[0m");
+
+                                    //closing the channel
+                                    channel.shutdown();
+                                });
+                                requestThread.start();
+                                requestThreads.add(requestThread);// save the threads to make the join
+                            }
+                            for (Thread t : requestThreads){
+                                try {
+                                    t.join(); //necessaria per attendere le delayedReply
+                                } catch (InterruptedException e) {
+                                    e.printStackTrace();
                                 }
                             }
+                            if (finalRideAcquisition.getAckToReceive() <= 0){
+                                handleRide(finalRide);
+                            }
+
 
                             //else nothing
                             // gestire la mutual exclusion
