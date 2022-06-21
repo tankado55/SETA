@@ -357,12 +357,12 @@ public class Taxi {
         else{
             position = ride.getDestinationPosition();
         }
-        subscribeToRideRequests();
 
         synchronized (busyLock){
             busy = false;
         }
 
+        subscribeToRideRequests();
         publishAvailability();
     }
 
