@@ -192,8 +192,8 @@ public class Taxi {
                 // Connect the client
                 System.out.println(clientId + " Connecting Broker " + broker);
                 client.connect(connOpts);
-                //new Thread(() -> {}).start();
                 client.setCallback(new MqttCallback() {
+                    new Thread(() -> {}).start();
                     public void messageArrived(String topic, MqttMessage message) {
                         // Called when a message arrives from the server that matches any subscription made by the client
 
