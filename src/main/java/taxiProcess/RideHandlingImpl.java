@@ -45,7 +45,7 @@ public class RideHandlingImpl extends RideHandlingServiceGrpc.RideHandlingServic
             }
         }
 
-        taxi.addDelayedResponse(request.getRideRequestMsg().getId(), responseObserver);
+        taxi.addDelayedResponse(new DelayedResponse(request.getRideRequestMsg().getId(), responseObserver));
 
         // here the request must be delayed to respond OK or discard later
 

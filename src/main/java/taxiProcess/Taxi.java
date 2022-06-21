@@ -59,7 +59,7 @@ public class Taxi {
 
 
     // Grpc
-    private Map<String, StreamObserver<RideHandlingReply>> delayedRideResponses = new HashMap<String, StreamObserver<RideHandlingReply>>();
+    private List<DelayedResponse> delayedRideResponses = new ArrayList<>();
     private List<TaxiInfo> taxiContacts = new ArrayList<TaxiInfo>();
     public Object busyLock = new Object();
 
@@ -89,16 +89,16 @@ public class Taxi {
         return battery;
     }
 
-    public void addDelayedResponse(String rideRequestId, StreamObserver<RideHandlingReply> obs){
+    public void addDelayedResponse(DelayedResponse dr){
 
         synchronized (busyLock){
             if (busy){
                 RideHandlingReply response = RideHandlingReply.newBuilder().setDiscard(false).build();
-                obs.onNext(response);
-                obs.onCompleted();
+                dr.getObserver().onNext(response);
+                dr.getObserver().onCompleted();
             }
             else{
-                delayedRideResponses.put(rideRequestId, obs);
+                delayedRideResponses.add(dr);
             }
         }
 
@@ -191,7 +191,7 @@ public class Taxi {
                     public void messageArrived(String topic, MqttMessage message) {
                         // Called when a message arrives from the server that matches any subscription made by the client
 
-                        if (topic.indexOf(ridesTopic) != -1){
+                        if (topic.equals(ridesTopic + position.getDistrict())){
 
                             RideAcquisition rideAcquisition = null;
                             RideRequest ride = null;
@@ -248,6 +248,9 @@ public class Taxi {
                             if (finalRideAcquisition.getAckToReceive() <= 0){
                                 handleRide(finalRide);
                             }
+                            else{
+                                System.out.println("\u001B[33m" + "Ride " + ride.getId() + " taken by another taxi" + "\u001B[0m");
+                            }
 
 
                             //else nothing
@@ -302,20 +305,16 @@ public class Taxi {
         System.out.println("Taxi n. " + id + " taking charge of ride request n. " + ride.getId());
 
         // free al other rides
-        RideHandlingReply response = RideHandlingReply.newBuilder().setDiscard(true).build();
-        StreamObserver<RideHandlingReply> responseObserver = delayedRideResponses.get(ride.getId());
-        if (responseObserver != null){
-            responseObserver.onNext(response);
-            responseObserver.onCompleted();
-            delayedRideResponses.remove(ride.getId());
-        }
-
-
-        response = RideHandlingReply.newBuilder().setDiscard(false).build();
-        for (String rideId : delayedRideResponses.keySet()){
-            StreamObserver<RideHandlingReply> observer = delayedRideResponses.get(rideId);
-            observer.onNext(response);
-            observer.onCompleted();
+        for (DelayedResponse delayedResponse : delayedRideResponses){
+            RideHandlingReply response;
+            if (delayedResponse.getRideId().equals(ride.getId())) {
+                response = RideHandlingReply.newBuilder().setDiscard(true).build();
+            }
+            else {
+                response = RideHandlingReply.newBuilder().setDiscard(false).build();
+            }
+            delayedResponse.getObserver().onNext(response);
+            delayedResponse.getObserver().onCompleted();
         }
         delayedRideResponses.clear();
 
@@ -358,6 +357,10 @@ public class Taxi {
 
     public double getDistance(Position pos){
         return sqrt((pos.getY() - position.getY()) * (pos.getY() - position.getY()) + (pos.getX() - position.getX()) * (pos.getX() - position.getX()));
+    }
+
+    public Position getPosition() {
+        return position;
     }
 }
 
