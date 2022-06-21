@@ -41,4 +41,8 @@ public class RideRequestQueue {
 
         return ride;
     }
+
+    public int getSize(){
+        return rides.size();
+    }
 }

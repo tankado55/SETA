@@ -1,20 +1,21 @@
 package taxiProcess;
 
+import SETA.RideRequest;
 import io.grpc.stub.StreamObserver;
 import it.ewlab.ride.RideHandlingServiceOuterClass;
 
 public class DelayedResponse {
 
-    String rideId;
+    RideRequest rideRequest;
     StreamObserver<RideHandlingServiceOuterClass.RideHandlingReply> observer;
 
-    public DelayedResponse(String rideId, StreamObserver<RideHandlingServiceOuterClass.RideHandlingReply> observer){
-        this.rideId = rideId;
+    public DelayedResponse(RideRequest rideRequest, StreamObserver<RideHandlingServiceOuterClass.RideHandlingReply> observer){
+        this.rideRequest = rideRequest;
         this.observer = observer;
     }
 
-    public String getRideId() {
-        return rideId;
+    public RideRequest getRideRequest() {
+        return rideRequest;
     }
 
     public StreamObserver<RideHandlingServiceOuterClass.RideHandlingReply> getObserver() {

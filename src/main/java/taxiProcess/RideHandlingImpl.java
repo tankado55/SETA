@@ -1,5 +1,6 @@
 package taxiProcess;
 
+import SETA.RideRequest;
 import beans.Position;
 import io.grpc.stub.StreamObserver;
 import it.ewlab.ride.RideHandlingServiceGrpc;
@@ -45,7 +46,7 @@ public class RideHandlingImpl extends RideHandlingServiceGrpc.RideHandlingServic
             }
         }
 
-        taxi.addDelayedResponse(new DelayedResponse(request.getRideRequestMsg().getId(), responseObserver));
+        taxi.addDelayedResponse(new DelayedResponse(new RideRequest(request.getRideRequestMsg()), responseObserver));
 
         // here the request must be delayed to respond OK or discard later
 

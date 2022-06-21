@@ -98,7 +98,10 @@ public class Taxi {
                 dr.getObserver().onCompleted();
             }
             else{
-                delayedRideResponses.add(dr);
+                synchronized (delayedRideResponses){
+                    delayedRideResponses.add(dr);
+                }
+                System.out.println("Delayed Ride " + dr.getRideRequest().getId() + " my distance: " + getDistance(dr.getRideRequest().getStartingPosition()));
             }
         }
 
@@ -190,8 +193,7 @@ public class Taxi {
                 client.setCallback(new MqttCallback() {
                     public void messageArrived(String topic, MqttMessage message) {
                         // Called when a message arrives from the server that matches any subscription made by the client
-
-                        if (topic.equals(ridesTopic + position.getDistrict())){
+                        new Thread(() -> {if (topic.equals(ridesTopic + position.getDistrict())){
 
                             RideAcquisition rideAcquisition = null;
                             RideRequest ride = null;
@@ -225,12 +227,15 @@ public class Taxi {
                                             .setDistance(distanceFromRide)
                                             .setBattery(battery)
                                             .setTaxiId(id).build();
-
+                                    System.out.println("I want Ride " +  finalRide.getId() + " my distance: " + getDistance(finalRide.getStartingPosition()));
                                     RideHandlingReply response = stub.startRideHandling(request);
 
                                     if (!response.getDiscard()){
-                                        finalRideAcquisition.acked();
+                                        synchronized (finalRideAcquisition){
+                                            finalRideAcquisition.acked();
+                                        }
                                     }
+                                    System.out.println("Received reply Ride" + finalRide.getId() + ", discard? " + response.getDiscard());
 
                                     //closing the channel
                                     channel.shutdown();
@@ -250,6 +255,19 @@ public class Taxi {
                             }
                             else{
                                 System.out.println("\u001B[33m" + "Ride " + ride.getId() + " taken by another taxi" + "\u001B[0m");
+                                //free the request
+                                /*
+                                synchronized (delayedRideResponses){
+                                    for (DelayedResponse dr : delayedRideResponses){
+                                        RideHandlingReply response;
+                                        if (dr.getRideRequest().getId().equals(ride.getId())) {
+                                            response = RideHandlingReply.newBuilder().setDiscard(true).build();
+                                            dr.getObserver().onNext(response);
+                                            dr.getObserver().onCompleted();
+                                        }
+                                    }
+                                }*/
+
                             }
 
 
@@ -259,7 +277,8 @@ public class Taxi {
                             // servizio che risponda OK
                             // un taxi può partecipare a due mutual exclusion? si, quando ne vince una rilascia l'altra
                             // se uno sta facendo la ride, risponde sempre ok, quindi per forza boolean
-                        }
+                        }}).start();
+
                     }
                     public void connectionLost(Throwable cause) {
                         System.out.println(clientId + " Connectionlost! cause:" + cause.getMessage()+ "-  Thread PID: " + Thread.currentThread().getId());
@@ -305,18 +324,21 @@ public class Taxi {
         System.out.println("Taxi n. " + id + " taking charge of ride request n. " + ride.getId());
 
         // free al other rides
-        for (DelayedResponse delayedResponse : delayedRideResponses){
-            RideHandlingReply response;
-            if (delayedResponse.getRideId().equals(ride.getId())) {
-                response = RideHandlingReply.newBuilder().setDiscard(true).build();
+        synchronized (delayedRideResponses){
+            for (DelayedResponse delayedResponse : delayedRideResponses){
+                RideHandlingReply response;
+                if (delayedResponse.getRideRequest().getId().equals(ride.getId())) {
+                    response = RideHandlingReply.newBuilder().setDiscard(true).build();
+                }
+                else {
+                    response = RideHandlingReply.newBuilder().setDiscard(false).build();
+                }
+                delayedResponse.getObserver().onNext(response);
+                delayedResponse.getObserver().onCompleted();
             }
-            else {
-                response = RideHandlingReply.newBuilder().setDiscard(false).build();
-            }
-            delayedResponse.getObserver().onNext(response);
-            delayedResponse.getObserver().onCompleted();
+            delayedRideResponses.clear();
         }
-        delayedRideResponses.clear();
+
 
         // make the ride
         try {
@@ -342,7 +364,6 @@ public class Taxi {
         }
 
         publishAvailability();
-
     }
 
     public void publishAvailability(){
@@ -350,6 +371,7 @@ public class Taxi {
         MqttMessage message = new MqttMessage(payload.toByteArray());
         try {
             client.publish(taxiAvailabilityTopic, message);
+            System.out.println("to SETA, I'm available on district" + position.getDistrict());
         } catch (MqttException e) {
             throw new RuntimeException(e);
         }
@@ -365,8 +387,10 @@ public class Taxi {
 }
 
 // TODO
-// test 2 taxi
-// ricarica
-// statistiche
-// client
+// ricarica (Demolli)                   1G
+// 1. pollution (Demolli/Piscitelli)    1G
+// 2. statistiche REST                  2G
+// client                               2G
 // exit controllata
+
+// se id è già presente consentire di reinserirlo

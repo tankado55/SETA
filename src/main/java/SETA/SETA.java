@@ -55,6 +55,10 @@ public class SETA {
             rideRequestQueues.get(ride1.getStartingPosition().getDistrict() - 1).put(ride1);
             rideRequestQueues.get(ride2.getStartingPosition().getDistrict() - 1).put(ride2);
 
+            for (int i = 0; i < rideRequestQueues.size(); ++i){
+                System.out.println("District " + (i+1) + ", queue: " + rideRequestQueues.get(i).getSize());
+            }
+
             Thread.sleep(5000);
         }
 
