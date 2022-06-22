@@ -57,8 +57,10 @@ public class Taxi {
     // Taxi Data
     private Position position;
     private Taxi(){}
-    private int  battery = 100;
-    private boolean busy;
+    private Battery battery = new Battery();
+    private boolean busy = false;
+    private boolean authorizedExit = false;
+    private Integer parallelElectionCount = 0;
 
     // Grpc
     private List<DelayedResponse> delayedRideResponses = new ArrayList<>();
@@ -88,7 +90,11 @@ public class Taxi {
         return id;
     }
 
-    public int getBattery() {
+    public int getBatteryLevel() {
+        return battery.getLevel();
+    }
+
+    public Battery getBattery() {
         return battery;
     }
 
@@ -196,7 +202,10 @@ public class Taxi {
                 client.setCallback(new MqttCallback() {
                     public void messageArrived(String topic, MqttMessage message) {
                         // Called when a message arrives from the server that matches any subscription made by the client
-                        new Thread(() -> {if (topic.equals(ridesTopic + position.getDistrict())){
+                        new Thread(() -> {if (topic.equals(ridesTopic + position.getDistrict()) && !authorizedExit){
+                            synchronized (parallelElectionCount){
+                                ++parallelElectionCount;
+                            }
 
                             RideAcquisition rideAcquisition = null;
                             RideRequest ride = null;
@@ -228,7 +237,7 @@ public class Taxi {
                                     RideHandlingRequest request = RideHandlingRequest.newBuilder()
                                             .setRideRequestMsg(finalRide.toMsg())
                                             .setDistance(distanceFromRide)
-                                            .setBattery(battery)
+                                            .setBattery(battery.getLevel())
                                             .setTaxiId(id).build();
                                     System.out.println("I want Ride " +  finalRide.getId() + " my distance: " + getDistance(finalRide.getStartingPosition()));
                                     RideHandlingReply response = stub.startRideHandling(request);
@@ -259,25 +268,26 @@ public class Taxi {
                                         busy = true;
                                         new Thread(() -> {handleRide(finalRide);}).start();
                                     }
-                                    else{
-                                        // nothing because this ride is freed by handleRide()
-                                    }
                                 }
                             }
                             else{
                                 System.out.println("\u001B[33m" + "Ride " + ride.getId() + " taken by another taxi" + "\u001B[0m");
                             }
-
-
-
-
-                            //else nothing
-                            // gestire la mutual exclusion
-                            // serve la lista dei taxi in questo momento
-                            // servizio che risponda OK
-                            // un taxi può partecipare a due mutual exclusion? si, quando ne vince una rilascia l'altra
-                            // se uno sta facendo la ride, risponde sempre ok, quindi per forza boolean
-                        }}).start();
+                            synchronized (parallelElectionCount){
+                                --parallelElectionCount;
+                            }
+                            if (parallelElectionCount == 0 && authorizedExit && battery.toRecharge())
+                                goToRechargeStation();
+                        }
+                        else if (topic.equals("exitResponse" + id)){
+                            authorizedExit = true;
+                            synchronized (busyLock){
+                                busy = true;
+                            }
+                            if (parallelElectionCount == 0 && authorizedExit && battery.toRecharge())
+                                goToRechargeStation();
+                        }
+                        }).start();
 
                     }
                     public void connectionLost(Throwable cause) {
@@ -293,6 +303,13 @@ public class Taxi {
                 throw new RuntimeException(e);
             }
         }
+    }
+
+    private void goToRechargeStation(){
+        System.out.println("I'm going to recharge station");
+    }
+    private void exit(){
+        System.out.println("Exit procedure Completed!");
     }
     public void subscribeToRideRequests(){
 
@@ -384,9 +401,8 @@ public class Taxi {
         return position;
     }
 
-    /*public void startExitRequest(){
+    public void startExitRequest(){
         // taxi ask seta to leave, if no ride has been published SETA return ok, taxi should retry if it has not acquired ride
-        wantToExit = true; //this will be checked at the end of an election if no ride has been taken
         try {client.subscribe("exitResponse" + id);
         JSONObject payload = new JSONObject();
         payload.put("id", id);
@@ -394,7 +410,7 @@ public class Taxi {
         MqttMessage msg = new MqttMessage(payload.toString().getBytes());
         client.publish("exitRequest", msg);
         } catch (MqttException | JSONException e) {e.printStackTrace();}
-    }*/
+    }
 }
 
 // TODO

@@ -22,6 +22,17 @@ public class RideRequestQueue {
             notify();
     }
 
+    public synchronized  void removeAvailableTaxi(){
+        if (availableTaxi < 1) {
+            try {
+                wait();
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            }
+        }
+        --availableTaxi;
+    }
+
     public synchronized RideRequest take() {
         RideRequest ride = null;
 

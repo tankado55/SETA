@@ -32,8 +32,10 @@ public class Main {
         // System.out.println("\n ***  Press a random key to exit *** \n");
         Scanner command = new Scanner(System.in);
         while (true){
-            command.nextLine();
-            System.out.println(command);
+            String input = command.nextLine();
+            if (input.equals("recharge")){
+                taxi.getBattery().startRecharge();
+            }
         }
 
         //client.disconnect();

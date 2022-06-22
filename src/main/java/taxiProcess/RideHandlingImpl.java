@@ -30,13 +30,13 @@ public class RideHandlingImpl extends RideHandlingServiceGrpc.RideHandlingServic
             return;
         }
         else if (request.getDistance() == myDistance){
-            if (request.getBattery() < taxi.getBattery()){
+            if (request.getBattery() < taxi.getBatteryLevel()){
                 RideHandlingReply response = RideHandlingReply.newBuilder().setDiscard(false).build();
                 responseObserver.onNext(response);
                 responseObserver.onCompleted();
                 return;
             }
-            else if (request.getBattery() == taxi.getBattery()){
+            else if (request.getBattery() == taxi.getBatteryLevel()){
                 if (Integer.valueOf(request.getTaxiId()) < Integer.valueOf(taxi.getId())){
                     RideHandlingReply response = RideHandlingReply.newBuilder().setDiscard(false).build();
                     responseObserver.onNext(response);
