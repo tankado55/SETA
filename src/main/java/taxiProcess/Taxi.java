@@ -20,6 +20,8 @@ import it.ewlab.ride.RideHandlingServiceGrpc;
 import it.ewlab.ride.RideHandlingServiceGrpc.*;
 import it.ewlab.ride.RideHandlingServiceOuterClass.*;
 import it.ewlab.ride.RideRequestMsgOuterClass.*;
+import org.codehaus.jettison.json.JSONException;
+import org.codehaus.jettison.json.JSONObject;
 import org.eclipse.paho.client.mqttv3.*;
 
 import java.io.BufferedReader;
@@ -47,6 +49,7 @@ public class Taxi {
     String clientId = MqttClient.generateClientId();
     String ridesTopic = "seta/smartcity/rides/district";
     String taxiAvailabilityTopic = "seta/smartcity/taxyAvailability";
+    String exitResponseTopic;
     String broker = "tcp://localhost:1883";
     MqttClient client;
     int qos = 2;
@@ -56,7 +59,6 @@ public class Taxi {
     private Taxi(){}
     private int  battery = 100;
     private boolean busy;
-
 
     // Grpc
     private List<DelayedResponse> delayedRideResponses = new ArrayList<>();
@@ -79,6 +81,7 @@ public class Taxi {
         setupMqtt();
         subscribeToRideRequests();
         publishAvailability();
+        exitResponseTopic = "exitResponse" + id;
     }
 
     public String getId() {
@@ -251,24 +254,21 @@ public class Taxi {
                                 }
                             }
                             if (finalRideAcquisition.getAckToReceive() <= 0){
-                                handleRide(finalRide);
+                                synchronized (busyLock){
+                                    if (busy == false){
+                                        busy = true;
+                                        new Thread(() -> {handleRide(finalRide);}).start();
+                                    }
+                                    else{
+                                        // nothing because this ride is freed by handleRide()
+                                    }
+                                }
                             }
                             else{
                                 System.out.println("\u001B[33m" + "Ride " + ride.getId() + " taken by another taxi" + "\u001B[0m");
-                                //free the request
-                                /*
-                                synchronized (delayedRideResponses){
-                                    for (DelayedResponse dr : delayedRideResponses){
-                                        RideHandlingReply response;
-                                        if (dr.getRideRequest().getId().equals(ride.getId())) {
-                                            response = RideHandlingReply.newBuilder().setDiscard(true).build();
-                                            dr.getObserver().onNext(response);
-                                            dr.getObserver().onCompleted();
-                                        }
-                                    }
-                                }*/
-
                             }
+
+
 
 
                             //else nothing
@@ -317,9 +317,6 @@ public class Taxi {
 
     private void handleRide(RideRequest ride){
         unSubscribeToRideRequests();
-        synchronized (busyLock){
-            busy = true;
-        }
 
         System.out.println("Taxi n. " + id + " taking charge of ride request n. " + ride.getId());
 
@@ -363,8 +360,10 @@ public class Taxi {
         }
 
         subscribeToRideRequests();
+
         publishAvailability();
-    }
+
+        }
 
     public void publishAvailability(){
         TaxiAvailabilityMsg payload = TaxiAvailabilityMsg.newBuilder().setDistrict(position.getDistrict()).build();
@@ -384,6 +383,18 @@ public class Taxi {
     public Position getPosition() {
         return position;
     }
+
+    /*public void startExitRequest(){
+        // taxi ask seta to leave, if no ride has been published SETA return ok, taxi should retry if it has not acquired ride
+        wantToExit = true; //this will be checked at the end of an election if no ride has been taken
+        try {client.subscribe("exitResponse" + id);
+        JSONObject payload = new JSONObject();
+        payload.put("id", id);
+        payload.put("district", position.getDistrict());
+        MqttMessage msg = new MqttMessage(payload.toString().getBytes());
+        client.publish("exitRequest", msg);
+        } catch (MqttException | JSONException e) {e.printStackTrace();}
+    }*/
 }
 
 // TODO
