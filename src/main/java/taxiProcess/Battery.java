@@ -1,12 +1,12 @@
 package taxiProcess;
 
 public class Battery {
-    private int level = 100;
+    private double level = 100;
     private Boolean toRecharge = false;
 
     public Battery(){}
 
-    public int getLevel() {
+    public double getLevel() {
         return level;
     }
 
@@ -19,5 +19,9 @@ public class Battery {
         Taxi taxi = Taxi.getInstance();
         taxi.startExitRequest();
         toRecharge = true;
+    }
+
+    public void discarge(double quantity){
+        level -= quantity;
     }
 }

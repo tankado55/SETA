@@ -22,15 +22,14 @@ public class RideRequestQueue {
             notify();
     }
 
-    public synchronized  void removeAvailableTaxi(){
-        if (availableTaxi < 1) {
-            try {
-                wait();
-            } catch (InterruptedException e) {
-                throw new RuntimeException(e);
-            }
+    public synchronized boolean removeAvailableTaxi(){
+        if (availableTaxi > 1) {
+            --availableTaxi;
+            return true;
         }
-        --availableTaxi;
+        else{
+            return false;
+        }
     }
 
     public synchronized RideRequest take() {

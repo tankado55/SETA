@@ -45,12 +45,12 @@ public class TaxiAvailabilitySubscriber {
                             System.out.println("Received Exiting Message!");
                             try {
                                 JSONObject msg = new JSONObject(new String(message.getPayload()));
-                                rideRequestQueues.get(msg.getInt("district") -1).removeAvailableTaxi();
-                                JSONObject payload = new JSONObject();
-                                payload.put("ok", true);
-                                MqttMessage response = new MqttMessage(payload.toString().getBytes());
-                                client.publish("exitResponse" + msg.getString("id"), response);
-
+                                if (rideRequestQueues.get(msg.getInt("district") -1).removeAvailableTaxi()){
+                                    JSONObject payload = new JSONObject();
+                                    payload.put("ok", true);
+                                    MqttMessage response = new MqttMessage(payload.toString().getBytes());
+                                    client.publish("exitResponse" + msg.getString("id"), response);
+                                }
                             } catch (JSONException e) {throw new RuntimeException(e);} catch (MqttPersistenceException e) {
                                 throw new RuntimeException(e);
                             } catch (MqttException e) {

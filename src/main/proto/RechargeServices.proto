@@ -1,0 +1,17 @@
+package it.ewlab.ride;
+
+import "google/protobuf/timestamp.proto";
+
+message RechargeRequest{
+  required int32 district = 1;
+  required google.protobuf.Timestamp time = 2;
+}
+
+message RechargeResponse{
+  required bool ok = 1;
+}
+
+
+service RechargeServices {
+  rpc askPremiseToCharge(RechargeRequest) returns (RechargeResponse);
+}
