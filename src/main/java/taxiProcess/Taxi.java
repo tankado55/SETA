@@ -58,8 +58,8 @@ public class Taxi {
     private Position position;
     private Taxi(){}
     private Battery battery = new Battery();
-    private boolean busy = false;
-    private boolean authorizedExit = false;
+    private Boolean busy = false;
+    private Boolean authorizedExit = false;
     private Integer parallelElectionCount = 0;
 
     // Grpc
@@ -100,7 +100,7 @@ public class Taxi {
 
     public void addDelayedResponse(DelayedResponse dr){
 
-        synchronized (busyLock){
+        synchronized (busy){
             if (busy){
                 RideHandlingReply response = RideHandlingReply.newBuilder().setDiscard(false).build();
                 dr.getObserver().onNext(response);
@@ -264,10 +264,10 @@ public class Taxi {
                             }
                             if (finalRideAcquisition.getAckToReceive() <= 0){
                                 synchronized (busyLock){
-                                    if (busy == false){
+                                    synchronized (busy){
                                         busy = true;
-                                        new Thread(() -> {handleRide(finalRide);}).start();
                                     }
+                                    handleRide(finalRide);
                                 }
                             }
                             else{
@@ -281,9 +281,7 @@ public class Taxi {
                         }
                         else if (topic.equals("exitResponse" + id)){
                             authorizedExit = true;
-                            synchronized (busyLock){
-                                busy = true;
-                            }
+
                             if (parallelElectionCount == 0 && authorizedExit && battery.toRecharge())
                                 goToRechargeStation();
                         }
@@ -306,7 +304,12 @@ public class Taxi {
     }
 
     private void goToRechargeStation(){
-        System.out.println("I'm going to recharge station");
+        synchronized (busyLock){
+            synchronized (busy){
+                busy = true;
+            }
+            System.out.println("I'm going to recharge station");
+        }
     }
     private void exit(){
         System.out.println("Exit procedure Completed!");
@@ -333,7 +336,7 @@ public class Taxi {
     }
 
     private void handleRide(RideRequest ride){
-        unSubscribeToRideRequests();
+        //unSubscribeToRideRequests();
 
         System.out.println("Taxi n. " + id + " taking charge of ride request n. " + ride.getId());
 
@@ -363,7 +366,7 @@ public class Taxi {
 
         System.out.println("Taxi n." + id + ", ride " + ride.getId() + " Completed!");
         if (ride.getStartingPosition().getDistrict() != ride.getDestinationPosition().getDistrict()){
-            //unSubscribeToRideRequests();
+            unSubscribeToRideRequests();
             position = ride.getDestinationPosition();
             System.out.println("Moved to "+ position.getDistrict());
 
@@ -372,7 +375,7 @@ public class Taxi {
             position = ride.getDestinationPosition();
         }
 
-        synchronized (busyLock){
+        synchronized (busy){
             busy = false;
         }
 
