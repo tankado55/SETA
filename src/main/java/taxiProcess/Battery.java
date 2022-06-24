@@ -8,7 +8,7 @@ public class Battery {
     private double level = 100;
     private Boolean toRecharge = false;
     private Instant time;
-    public Boolean isCharging;
+    public Boolean isCharging = false;
 
     public Battery(){}
 
@@ -49,6 +49,7 @@ public class Battery {
             } catch (InterruptedException e) {
                 throw new RuntimeException(e);
             }
+            System.out.println("Recharge Completed!");
             isCharging = false;
         }
     }

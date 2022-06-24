@@ -371,7 +371,7 @@ public class Taxi {
                 }
             }
 
-            System.out.println("I'm going to recharge station, I received permission from other taxis");
+            System.out.println("\u001B[36m" + "I'm going to recharge station, I received permission from other taxis" + "\u001B[0m");
             Position rechargePosition = Utils.getRechargePosition(position.getDistrict());
             battery.discarge(getDistance(rechargePosition));
             position = rechargePosition;
@@ -430,10 +430,16 @@ public class Taxi {
         }
 
         System.out.println("Taxi n." + id + ", ride " + ride.getId() + " Completed!");
+
+        battery.discarge(getDistance(ride.getStartingPosition()));
         if (ride.getStartingPosition().getDistrict() != ride.getDestinationPosition().getDistrict()){
             unSubscribeToRideRequests();
+            position = ride.getDestinationPosition();
             System.out.println("Moved to "+ position.getDistrict());
+        }else {
+            position = ride.getDestinationPosition();
         }
+        battery.discarge(getDistance(ride.getStartingPosition()));
 
         synchronized (authorizedExit){
             if (authorizedExit){
@@ -442,9 +448,7 @@ public class Taxi {
             }
         }
 
-        battery.discarge(getDistance(ride.getStartingPosition()));
-        position = ride.getDestinationPosition();
-        battery.discarge(getDistance(ride.getStartingPosition()));
+
 
         if (battery.toRecharge()){
             startRechargeRequest();
