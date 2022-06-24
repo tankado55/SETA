@@ -1,8 +1,14 @@
 package taxiProcess;
 
+import com.google.protobuf.Timestamp;
+
+import java.time.Instant;
+
 public class Battery {
     private double level = 100;
     private Boolean toRecharge = false;
+    private Instant time;
+    public Boolean isCharging;
 
     public Battery(){}
 
@@ -14,14 +20,36 @@ public class Battery {
         return toRecharge;
     }
 
-    public void startRecharge() {
-        // TODO refactor
-        Taxi taxi = Taxi.getInstance();
-        taxi.startExitRequest();
+    public void setTriggerForRechargeAfterRideCompleted() {
         toRecharge = true;
     }
 
     public void discarge(double quantity){
         level -= quantity;
+    }
+
+    public void setCurrentTimestamp(){
+        time = Instant.now();
+    }
+
+    public Timestamp getRequestTimestamp(){
+        return Timestamp.newBuilder().setSeconds(time.getEpochSecond())
+                .setNanos(time.getNano()).build();
+    }
+
+    public Instant getRequestInstant(){
+        return time;
+    }
+
+    public void makeRecharge(){
+        synchronized (isCharging){
+            isCharging = true;
+            try {
+                Thread.sleep(10000);
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            }
+            isCharging = false;
+        }
     }
 }

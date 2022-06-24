@@ -5,6 +5,8 @@ import it.ewlab.ride.RechargeServicesGrpc.*;
 import it.ewlab.ride.RechargeServicesOuterClass.*;
 import it.ewlab.ride.RideHandlingServiceOuterClass;
 
+import java.time.Instant;
+
 public class RechargeServicesImpl extends RechargeServicesImplBase {
 
     @Override
@@ -15,12 +17,18 @@ public class RechargeServicesImpl extends RechargeServicesImplBase {
         if (!taxi.wantToCharge || request.getDistrict() != taxi.getPosition().getDistrict()){
             responseObserver.onNext(response);
             responseObserver.onCompleted();
+            return;
         }
         else{
-            synchronized (taxi.charging){
-                responseObserver.onNext(response);
-                responseObserver.onCompleted();
+            synchronized (taxi.getBattery().isCharging) {// this means I want to charge but i'm not charging
+                Instant requestTimestamp = Instant.ofEpochSecond(request.getTime().getSeconds(), request.getTime().getNanos());
+                if (requestTimestamp.isBefore(taxi.getBattery().getRequestInstant())) {
+                    responseObserver.onNext(response);
+                    responseObserver.onCompleted();
+                    return;
+                } else taxi.addDelayedRechargeResponse(responseObserver);
             }
         }
     }
 }
+

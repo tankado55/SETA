@@ -70,6 +70,7 @@ public class Taxi {
 
     // Grpc
     private List<DelayedResponse> delayedRideResponses = new ArrayList<>();
+    private List<StreamObserver<RechargeResponse>> delayedRechargeResponses = new ArrayList<>();
     private List<TaxiInfo> taxiContacts = new ArrayList<TaxiInfo>();
     public Object busyLock = new Object();
 
@@ -119,9 +120,12 @@ public class Taxi {
                 System.out.println("Delayed Ride " + dr.getRideRequest().getId() + " my distance: " + getDistance(dr.getRideRequest().getStartingPosition()));
             }
         }
+    }
 
-
-
+    public void addDelayedRechargeResponse(StreamObserver<RechargeResponse> response){
+        synchronized (delayedRechargeResponses){
+            delayedRechargeResponses.add(response);
+        }
     }
 
     public void registerItself(){
@@ -287,16 +291,20 @@ public class Taxi {
                                         --parallelElectionCount;
                                     }
                                     if (parallelElectionCount == 0 && authorizedExit && battery.toRecharge())
-                                        goToRechargeStation();
+                                        startRechargeRequest();
                                 }
 
                         }
                         else if (topic.equals("exitResponse" + id)){
                             authorizedExit = true;
 
-                            if (parallelElectionCount == 0 && authorizedExit && battery.toRecharge())
+                            if (parallelElectionCount == 0 && authorizedExit && battery.toRecharge()){
                                 System.out.println("Received exit authorization from SETA");
-                                goToRechargeStation();
+                                startRechargeRequest();
+                            }
+                            else{
+                                exit();
+                            }
                         }
                         }).start();
 
@@ -316,15 +324,17 @@ public class Taxi {
         }
     }
 
-    private void goToRechargeStation(){
+    private void exit(){
+        System.out.println("Bye Bye");
+    }
+
+    private void startRechargeRequest(){
         synchronized (busyLock){
             synchronized (busy){
                 busy = true;
             }
             System.out.println("I want to charge in district " + position.getDistrict());
-            Instant time = Instant.now();
-            Timestamp requestTimestamp = Timestamp.newBuilder().setSeconds(time.getEpochSecond())
-                    .setNanos(time.getNano()).build();
+            battery.setCurrentTimestamp();
 
             wantToCharge = true;
             List<TaxiInfo> currentContacts;
@@ -343,7 +353,7 @@ public class Taxi {
                     //creating the HelloResponse object which will be provided as input to the RPC method
                     RechargeRequest request = RechargeRequest.newBuilder()
                                     .setDistrict(getPosition().getDistrict())
-                                            .setTime(requestTimestamp).build();
+                                            .setTime(battery.getRequestTimestamp()).build();
 
                     RechargeResponse response = stub.askPremiseToCharge(request);
 
@@ -362,17 +372,14 @@ public class Taxi {
             }
 
             System.out.println("I'm going to recharge station, I received permission from other taxis");
-            synchronized (charging){
-
-            }
-            // charging
-            // permit others to charge
+            Position rechargePosition = Utils.getRechargePosition(position.getDistrict());
+            battery.discarge(getDistance(rechargePosition));
+            position = rechargePosition;
+            battery.makeRecharge();
+            delayedRechargeResponses.clear();
         }
         authorizedExit = false;
         wantToCharge = false;
-    }
-    private void exit(){
-        System.out.println("Exit procedure Completed!");
     }
     public void subscribeToRideRequests(){
 
@@ -440,7 +447,7 @@ public class Taxi {
         battery.discarge(getDistance(ride.getStartingPosition()));
 
         if (battery.toRecharge()){
-            goToRechargeStation();
+            startRechargeRequest();
         }
         synchronized (busy){
             busy = false;

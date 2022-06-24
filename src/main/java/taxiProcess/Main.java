@@ -34,7 +34,8 @@ public class Main {
         while (true){
             String input = command.nextLine();
             if (input.equals("recharge")){
-                taxi.getBattery().startRecharge();
+                taxi.startExitRequest();
+                taxi.getBattery().setTriggerForRechargeAfterRideCompleted();
             }
         }
 
