@@ -25,7 +25,7 @@ public class GrpcServices extends Thread{
 
         try {
 
-            Server server = ServerBuilder.forPort(port).addService(new RideHandlingImpl()).addService(new GreetingsImpl()).build();
+            Server server = ServerBuilder.forPort(port).addService(new RideHandlingImpl()).addService(new GreetingsImpl()).addService(new RechargeServicesImpl()).build();
 
             System.out.println("Starting Grpc server ... ");
 

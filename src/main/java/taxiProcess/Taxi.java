@@ -14,11 +14,11 @@ import com.sun.jersey.api.client.WebResource;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
 import io.grpc.stub.StreamObserver;
+import it.ewlab.recharge.RechargeServicesGrpc;
+import it.ewlab.recharge.RechargeServicesOuterClass;
 import it.ewlab.ride.GreetingsServiceGrpc;
 import it.ewlab.ride.GreetingsServiceGrpc.*;
 import it.ewlab.ride.GreetingsServiceOuterClass.*;
-import it.ewlab.ride.RechargeServicesGrpc;
-import it.ewlab.ride.RechargeServicesOuterClass.*;
 import it.ewlab.ride.RideHandlingServiceGrpc;
 import it.ewlab.ride.RideHandlingServiceGrpc.*;
 import it.ewlab.ride.RideHandlingServiceOuterClass.*;
@@ -70,7 +70,7 @@ public class Taxi {
 
     // Grpc
     private List<DelayedResponse> delayedRideResponses = new ArrayList<>();
-    private List<StreamObserver<RechargeResponse>> delayedRechargeResponses = new ArrayList<>();
+    private List<StreamObserver<RechargeServicesOuterClass.RechargeResponse>> delayedRechargeResponses = new ArrayList<>();
     private List<TaxiInfo> taxiContacts = new ArrayList<TaxiInfo>();
     public Object busyLock = new Object();
 
@@ -122,7 +122,7 @@ public class Taxi {
         }
     }
 
-    public void addDelayedRechargeResponse(StreamObserver<RechargeResponse> response){
+    public void addDelayedRechargeResponse(StreamObserver<RechargeServicesOuterClass.RechargeResponse> response){
         synchronized (delayedRechargeResponses){
             delayedRechargeResponses.add(response);
         }
@@ -351,11 +351,11 @@ public class Taxi {
                     RechargeServicesGrpc.RechargeServicesBlockingStub stub = RechargeServicesGrpc.newBlockingStub(channel);
 
                     //creating the HelloResponse object which will be provided as input to the RPC method
-                    RechargeRequest request = RechargeRequest.newBuilder()
+                    RechargeServicesOuterClass.RechargeRequest request = RechargeServicesOuterClass.RechargeRequest.newBuilder()
                                     .setDistrict(getPosition().getDistrict())
                                             .setTime(battery.getRequestTimestamp()).build();
 
-                    RechargeResponse response = stub.askPremiseToCharge(request);
+                    RechargeServicesOuterClass.RechargeResponse response = stub.askPremiseToCharge(request);
 
                     //closing the channel
                     channel.shutdown();
@@ -374,12 +374,21 @@ public class Taxi {
             System.out.println("\u001B[36m" + "I'm going to recharge station, I received permission from other taxis" + "\u001B[0m");
             Position rechargePosition = Utils.getRechargePosition(position.getDistrict());
             battery.discarge(getDistance(rechargePosition));
+            System.out.println("Battery Level: " + battery.getLevel());
             position = rechargePosition;
             battery.makeRecharge();
+            synchronized (delayedRechargeResponses){
+                RechargeServicesOuterClass.RechargeResponse response = RechargeServicesOuterClass.RechargeResponse.newBuilder().setOk(true).build();
+                for (StreamObserver<RechargeServicesOuterClass.RechargeResponse> responseObserver : delayedRechargeResponses){
+                    responseObserver.onNext(response);
+                    responseObserver.onCompleted();
+                }
+            }
             delayedRechargeResponses.clear();
         }
         authorizedExit = false;
         wantToCharge = false;
+        battery.removeTriggerForRechargeAfterRideCompleted();
     }
     public void subscribeToRideRequests(){
 
@@ -430,7 +439,7 @@ public class Taxi {
         }
 
         System.out.println("Taxi n." + id + ", ride " + ride.getId() + " Completed!");
-
+        // discharge and change of position
         battery.discarge(getDistance(ride.getStartingPosition()));
         if (ride.getStartingPosition().getDistrict() != ride.getDestinationPosition().getDistrict()){
             unSubscribeToRideRequests();
@@ -440,17 +449,16 @@ public class Taxi {
             position = ride.getDestinationPosition();
         }
         battery.discarge(getDistance(ride.getStartingPosition()));
+        System.out.println("Battery Level: " + battery.getLevel());
 
         synchronized (authorizedExit){
             if (authorizedExit){
-                System.out.println("The availability below is published for previous district");
+                System.out.println("The availability below is published for previous district due to a change of district during recharge authorization process!");
                 publishAvailability(ride.getStartingPosition().getDistrict()); // this is because the taxi obtained premise to leave in the starting district
             }
         }
 
-
-
-        if (battery.toRecharge()){
+        if (battery.toRecharge() || battery.getLevel() < 30.0){
             startRechargeRequest();
         }
         synchronized (busy){

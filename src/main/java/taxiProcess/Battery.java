@@ -24,6 +24,10 @@ public class Battery {
         toRecharge = true;
     }
 
+    public void removeTriggerForRechargeAfterRideCompleted() {
+        toRecharge = false;
+    }
+
     public void discarge(double quantity){
         level -= quantity;
     }
@@ -49,6 +53,7 @@ public class Battery {
             } catch (InterruptedException e) {
                 throw new RuntimeException(e);
             }
+            level = 100.0;
             System.out.println("Recharge Completed!");
             isCharging = false;
         }
