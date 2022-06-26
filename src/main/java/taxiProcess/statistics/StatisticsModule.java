@@ -2,7 +2,7 @@ package taxiProcess.statistics;
 
 import java.time.Instant;
 import java.util.List;
-
+//Every 15 seconds, each Taxi has to compute and communicate to the administrator server the following local statistics
 public class StatisticsModule {
     Double km;
     Integer ridesCount;

@@ -37,6 +37,9 @@ import java.util.List;
 import java.util.Map;
 
 import it.ewlab.district.TaxiAvailabilityMsgOuterClass.*;
+import simulators.PM10Buffer;
+import simulators.PM10Simulator;
+import taxiProcess.statistics.StatisticsModule;
 
 import static java.lang.Math.sqrt;
 import static java.lang.Thread.sleep;
@@ -67,6 +70,7 @@ public class Taxi {
     private Integer parallelElectionCount = 0;
     public  Boolean wantToCharge = false;
     public Object charging = new Object();
+    private PM10Buffer pm10Buffer;
 
     // Grpc
     private List<DelayedResponse> delayedRideResponses = new ArrayList<>();
@@ -87,6 +91,9 @@ public class Taxi {
         grpc.setPort(Integer.valueOf(port));
         grpc.start();
         while (grpc.getServerState() != "Server Started"){try {sleep(1000);} catch (InterruptedException e) {throw new RuntimeException(e);}};
+        pm10Buffer = new PM10Buffer();
+        new PM10Simulator(pm10Buffer).start();
+        new StatisticsModule(pm10Buffer).start();
         setupMqtt();
         subscribeToRideRequests();
         publishAvailability();
