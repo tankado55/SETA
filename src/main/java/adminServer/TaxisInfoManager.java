@@ -45,4 +45,7 @@ public class TaxisInfoManager {
         }
     }
 
+    public List<TaxiInfo> getTaxiInfoList() {
+        return taxiInfoList;
+    }
 }
