@@ -6,6 +6,7 @@ import javax.xml.bind.annotation.XmlAccessType;
 import javax.xml.bind.annotation.XmlAccessorType;
 import javax.xml.bind.annotation.XmlElement;
 import javax.xml.bind.annotation.XmlRootElement;
+import java.util.ArrayList;
 import java.util.List;
 
 @XmlRootElement
@@ -17,12 +18,11 @@ public class StatisticsData {
     double batteryLevel;
     double km;
     Integer ridesCount;
-    @XmlElement(name="pollution_averages")
-    List<double> pollutionAverages;
+    ArrayList<Double> pollutionAverages;
 
     public StatisticsData() {}
 
-    public StatisticsData(String taxiId, long timestamp, double batteryLevel, double km, Integer ridesCount, List<Measurement> pollutionAverages) {
+    public StatisticsData(String taxiId, long timestamp, double batteryLevel, double km, Integer ridesCount, ArrayList<Double> pollutionAverages) {
         this.taxiId = taxiId;
         this.timestamp = timestamp;
         this.batteryLevel = batteryLevel;
@@ -51,7 +51,7 @@ public class StatisticsData {
         return ridesCount;
     }
 
-    public List<Measurement> getPollutionAverages() {
+    public List<Double> getPollutionAverages() {
         return pollutionAverages;
     }
 }

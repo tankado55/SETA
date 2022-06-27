@@ -39,6 +39,8 @@ import java.util.Map;
 import it.ewlab.district.TaxiAvailabilityMsgOuterClass.*;
 import simulators.PM10Buffer;
 import simulators.PM10Simulator;
+import taxiProcess.statistics.RidesStats;
+import taxiProcess.statistics.RidesStatsBuffer;
 import taxiProcess.statistics.StatisticsModule;
 
 import static java.lang.Math.sqrt;
@@ -61,6 +63,9 @@ public class Taxi {
     MqttClient client;
     int qos = 2;
 
+    // REST
+    Client restClient;
+
     // Taxi Data
     private Position position;
     private Taxi(){}
@@ -71,6 +76,7 @@ public class Taxi {
     public  Boolean wantToCharge = false;
     public Object charging = new Object();
     private PM10Buffer pm10Buffer;
+    private RidesStatsBuffer rideStatsBuffer = new RidesStatsBuffer();
 
     // Grpc
     private List<DelayedResponse> delayedRideResponses = new ArrayList<>();
@@ -93,7 +99,7 @@ public class Taxi {
         while (grpc.getServerState() != "Server Started"){try {sleep(1000);} catch (InterruptedException e) {throw new RuntimeException(e);}};
         pm10Buffer = new PM10Buffer();
         new PM10Simulator(pm10Buffer).start();
-        new StatisticsModule(this, pm10Buffer).start();
+        new StatisticsModule(this, restClient, pm10Buffer, rideStatsBuffer).start();
         setupMqtt();
         subscribeToRideRequests();
         publishAvailability();
@@ -146,12 +152,12 @@ public class Taxi {
             port = "5050" + id;
             //TODO check inputs
         } catch (IOException e) {e.printStackTrace();}
-        Client client = Client.create();
+        restClient = Client.create();
 
         // POST
         String postPath = "/taxis/add";
         TaxiInfo myTaxiInfo = new TaxiInfo(id, ip, port);
-        ClientResponse clientResponse = postRequest(client,Main.SERVERADDRESS+postPath,myTaxiInfo);
+        ClientResponse clientResponse = postRequest(restClient,Main.SERVERADDRESS+postPath,myTaxiInfo);
 
         TaxisRegistrationInfo regInfo = clientResponse.getEntity(TaxisRegistrationInfo.class);
 
@@ -457,6 +463,8 @@ public class Taxi {
         }
         battery.discarge(getDistance(ride.getStartingPosition()));
         System.out.println("Battery Level: " + battery.getLevel());
+        //stats
+        rideStatsBuffer.add(getDistance(ride.getStartingPosition()));
 
         synchronized (authorizedExit){
             if (authorizedExit){
