@@ -93,7 +93,7 @@ public class Taxi {
         while (grpc.getServerState() != "Server Started"){try {sleep(1000);} catch (InterruptedException e) {throw new RuntimeException(e);}};
         pm10Buffer = new PM10Buffer();
         new PM10Simulator(pm10Buffer).start();
-        new StatisticsModule(pm10Buffer).start();
+        new StatisticsModule(this, pm10Buffer).start();
         setupMqtt();
         subscribeToRideRequests();
         publishAvailability();
