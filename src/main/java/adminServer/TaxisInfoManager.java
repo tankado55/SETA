@@ -10,7 +10,7 @@ import java.util.List;
 
 public class TaxisInfoManager {
 
-    private List<TaxiInfo> taxiInfoList;
+    private ArrayList<TaxiInfo> taxiInfoList;
 
     private static TaxisInfoManager instance;
 
@@ -45,7 +45,7 @@ public class TaxisInfoManager {
         }
     }
 
-    public List<TaxiInfo> getTaxiInfoList() {
+    public ArrayList<TaxiInfo> getTaxiInfoList() {
         return taxiInfoList;
     }
 }
