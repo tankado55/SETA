@@ -1,5 +1,6 @@
 package adminServer;
 
+import beans.StatisticsAverages;
 import beans.StatisticsData;
 import beans.TaxiInfo;
 import beans.TaxiList;
@@ -25,11 +26,23 @@ public class StatisticsServices {
     @Path("get/taxiList")
     @GET
     @Produces({"application/json", "application/xml"})
-    public  Response getTaxiList(){
+    public Response getTaxiList(){
         TaxisInfoManager taxisInfoManager = TaxisInfoManager.getInstance();
         ArrayList<TaxiInfo> taxiInfos = taxisInfoManager.getTaxiInfoList();
         TaxiList taxiList= new TaxiList(taxiInfos);
 
         return Response.ok(taxiList).build();
     }
+
+    @Path("get/nAverages/{n}/{taxiId}")
+    @GET
+    @Produces({"application/json", "application/xml"})
+    public Response getNAverages(@PathParam("n") int n, @PathParam("taxiId") String taxiId){
+        StatisticsManager statisticsManager = StatisticsManager.getInstance();
+        StatisticsAverages averages = statisticsManager.getAverages(taxiId, n);
+
+        return Response.ok(averages).build();
+    }
+
+
 }
