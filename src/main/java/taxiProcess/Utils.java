@@ -2,6 +2,10 @@ package taxiProcess;
 
 import beans.Position;
 
+import java.text.Format;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -15,6 +19,20 @@ public class Utils {
 
     public static Position getRechargePosition(int district){
         return rechargePosition.get(district);
+    }
+
+    public static String toHumanDate(long millisTimestamp){
+        Date date = new Date(millisTimestamp);
+        Format format = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+        return format.format(date);
+    }
+
+    public static long toMachineDate(String dateString){
+        try {
+            SimpleDateFormat format = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+            Date date = format.parse(dateString);
+            return date.getTime();
+        } catch (ParseException e) {throw new RuntimeException(e);}
     }
 }
 

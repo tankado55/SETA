@@ -1,24 +1,26 @@
 package adminClient;
 
-import beans.StatisticsAverages;
-import beans.StatisticsData;
-import beans.TaxiInfo;
-import beans.TaxiList;
+import beans.*;
 import com.google.gson.Gson;
 import com.sun.jersey.api.client.Client;
 import com.sun.jersey.api.client.ClientHandlerException;
 import com.sun.jersey.api.client.ClientResponse;
 import com.sun.jersey.api.client.WebResource;
 import simulators.Buffer;
+import taxiProcess.Utils;
 
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.text.DecimalFormat;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Scanner;
 
+
 public class Main {
+    //utils
+    private static final DecimalFormat df = new DecimalFormat("0.00");
     public static void main(String[] args) {
         //init
         Client client = Client.create();
@@ -27,10 +29,11 @@ public class Main {
         BufferedReader bufferedReader = new BufferedReader(new InputStreamReader(System.in));
 
         while (true){
+            System.out.println("\n");
             System.out.println("Commands:");
             System.out.println("1 - Print the list of taxis currently in the network");
             System.out.println("2 - Print the average of n stats of a taxi");
-            System.out.println("3 - Print the average of stats between T1 and t2 of all taxis");
+            System.out.println("3 - Print the average of stats between a time1 and a time2 of all taxis");
 
             String input = null;
             int inputInt;
@@ -57,15 +60,44 @@ public class Main {
                     if (taxiId.equals(""))
                         throw new IOException();
                     System.out.println("How many stats you want? insert a number");
-                    int n = command.nextInt();
-                    String getPath = "get/nAverages/" + n + "/" + taxiId;
+                    String n = bufferedReader.readLine();
+                    if (n.equals(""))
+                        throw new IOException();
+                    int nInt = Integer.parseInt(n);
+                    String getPath = "/statistics/get/nAverages/" + taxiId + "/" + n;
                     ClientResponse clientResponse = getRequest(client, serverAddress+getPath);
                     StatisticsAverages averages = clientResponse.getEntity(StatisticsAverages.class);
                     System.out.println("Taxi Id: " + averages.getTaxiId()
-                            + ", average ride count: " + averages.getRideCountAverage()
-                            + ", average km driven: " + averages.getKmAverage()
-                            + ", average battery level: " + averages.getBatteryAverage()
-                            + ", average pollution level: " + averages.getPollutionAverage());
+                            + ", average ride count: " + df.format(averages.getRideCountAverage())
+                            + ", average km driven: " + df.format(averages.getKmAverage())
+                            + ", average battery level: " + df.format(averages.getBatteryAverage())
+                            + ", average pollution level: " + df.format(averages.getPollutionAverage()));
+                }
+                else if (inputInt == 3){
+                    // min timeStamp
+                    ClientResponse clientResponse = getRequest(client, serverAddress+"/statistics/get/firstTimestamp");
+                    LongBeanWrapper minTimestamp = clientResponse.getEntity(LongBeanWrapper.class);
+                    String formattedMinTimestamp = Utils.toHumanDate(minTimestamp.getWrapped());
+                    System.out.println("The first stat was picked at " + formattedMinTimestamp);
+                    // max timeStamp
+                    clientResponse = getRequest(client, serverAddress+"/statistics/get/lastTimestamp");
+                    LongBeanWrapper maxTimestamp = clientResponse.getEntity(LongBeanWrapper.class);
+                    String formattedMAxTimestamp = Utils.toHumanDate(maxTimestamp.getWrapped());
+                    System.out.println("The last stat was picked at " + formattedMAxTimestamp);
+                    // user inputs
+                    System.out.println("Insert t1 in the same format");
+                    String t1 = bufferedReader.readLine();
+                    System.out.println("Insert t2 in the same format");
+                    String t2 = bufferedReader.readLine();
+                    // get request
+                    String getPath = "/statistics/get/" + Utils.toMachineDate(t1) + "/" + Utils.toMachineDate(t2);
+                    clientResponse = getRequest(client, serverAddress+getPath);
+                    StatisticsAverages averages = clientResponse.getEntity(StatisticsAverages.class);
+                    System.out.println("Taxi Id: " + averages.getTaxiId()
+                            + ", average ride count: " + df.format(averages.getRideCountAverage())
+                            + ", average km driven: " + df.format(averages.getKmAverage())
+                            + ", average battery level: " + df.format(averages.getBatteryAverage())
+                            + ", average pollution level: " + df.format(averages.getPollutionAverage()));
                 }
 
             } catch (IOException e) {

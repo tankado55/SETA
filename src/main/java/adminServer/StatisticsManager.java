@@ -2,11 +2,10 @@ package adminServer;
 
 import beans.StatisticsAverages;
 import beans.StatisticsData;
+import beans.TaxiInfo;
 import simulators.Measurement;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
+import java.util.*;
 import java.util.stream.Collectors;
 
 public class StatisticsManager {
@@ -45,5 +44,51 @@ public class StatisticsManager {
                                                                                         .average().orElse(0.0)
                                                 ).average().orElse(0.0);
         return new StatisticsAverages(taxiId, rideCountAverage, kmAverage, batteryAverage, pollutionAverage);
+    }
+
+    public synchronized StatisticsAverages getStatisticsInterval(long t1, long t2){
+        List<StatisticsData> dataList = new ArrayList<>();
+        List<TaxiInfo> taxisInfo = TaxisInfoManager.getInstance().getTaxiInfoList();
+        for (TaxiInfo taxiInfo : taxisInfo){
+            List<StatisticsData> singleTaxiStats = statisticsDataMap.get(taxiInfo.getId());
+        }
+
+
+
+        double rideCountAverage = subDataList.stream().mapToDouble(StatisticsData::getRidesCount).average().orElse(0.0);
+        double kmAverage = subDataList.stream().mapToDouble(StatisticsData::getKm).average().orElse(0.0);
+        double batteryAverage = subDataList.stream().mapToDouble(StatisticsData::getBatteryLevel).average().orElse(0.0);
+        double pollutionAverage = subDataList.stream()
+                                                .mapToDouble(
+                                                        statisticsData -> statisticsData.getPollutionAverages()
+                                                                                        .stream()
+                                                                                        .mapToDouble(value -> value)
+                                                                                        .average().orElse(0.0)
+                                                ).average().orElse(0.0);
+        return new StatisticsAverages(taxiId, rideCountAverage, kmAverage, batteryAverage, pollutionAverage);
+    }
+
+    public synchronized StatisticsAverages getAverages(long t1, long t2){
+        return null;
+    }
+
+    public synchronized long getFirstStatTimestamp(){
+        List<Long> mins = new ArrayList<>();
+        List<TaxiInfo> taxisInfo = TaxisInfoManager.getInstance().getTaxiInfoList();
+        for (TaxiInfo taxiInfo : taxisInfo){
+            String taxiId = taxiInfo.getId();
+            mins.add(statisticsDataMap.get(taxiId).get(0).getTimestamp());
+        }
+        return Collections.min(mins);
+    }
+
+    public synchronized long getLastStatTimestamp(){
+        List<Long> maxs = new ArrayList<>();
+        List<TaxiInfo> taxisInfo = TaxisInfoManager.getInstance().getTaxiInfoList();
+        for (TaxiInfo taxiInfo : taxisInfo){
+            String taxiId = taxiInfo.getId();
+            maxs.add(statisticsDataMap.get(taxiId).get(statisticsDataMap.get(taxiId).size() - 1).getTimestamp());
+        }
+        return Collections.max(maxs);
     }
 }

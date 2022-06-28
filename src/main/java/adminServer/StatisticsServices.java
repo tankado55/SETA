@@ -1,9 +1,6 @@
 package adminServer;
 
-import beans.StatisticsAverages;
-import beans.StatisticsData;
-import beans.TaxiInfo;
-import beans.TaxiList;
+import beans.*;
 
 import javax.ws.rs.*;
 import javax.ws.rs.core.Response;
@@ -34,7 +31,7 @@ public class StatisticsServices {
         return Response.ok(taxiList).build();
     }
 
-    @Path("get/nAverages/{n}/{taxiId}")
+    @Path("get/nAverages/{taxiId}/{n}")
     @GET
     @Produces({"application/json", "application/xml"})
     public Response getNAverages(@PathParam("n") int n, @PathParam("taxiId") String taxiId){
@@ -42,6 +39,36 @@ public class StatisticsServices {
         StatisticsAverages averages = statisticsManager.getAverages(taxiId, n);
 
         return Response.ok(averages).build();
+    }
+
+    @Path("get/{t1}/{t2}")
+    @GET
+    @Produces({"application/json", "application/xml"})
+    public Response getStatisticsInterval(@PathParam("t1") long t1, @PathParam("t2") long t2){
+        StatisticsManager statisticsManager = StatisticsManager.getInstance();
+        StatisticsAverages averages = statisticsManager.getStatisticsInterval(t1, t2);
+
+        return Response.ok(averages).build();
+    }
+
+    @Path("get/firstTimestamp")
+    @GET
+    @Produces({"application/json", "application/xml"})
+    public Response getFirstTimestamp(){
+        StatisticsManager statisticsManager = StatisticsManager.getInstance();
+        Long minTimestamp = statisticsManager.getFirstStatTimestamp();
+
+        return Response.ok(new LongBeanWrapper(minTimestamp)).build();
+    }
+
+    @Path("get/lastTimestamp")
+    @GET
+    @Produces({"application/json", "application/xml"})
+    public Response getLastTimestamp(){
+        StatisticsManager statisticsManager = StatisticsManager.getInstance();
+        Long maxTimestamp = statisticsManager.getLastStatTimestamp();
+
+        return Response.ok(new LongBeanWrapper(maxTimestamp)).build();
     }
 
 

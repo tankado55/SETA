@@ -13,6 +13,7 @@ public class StatisticsAverages {
     private double batteryAverage;
     private double pollutionAverage;
 
+    public StatisticsAverages(){}
     public StatisticsAverages(String taxiId, double rideCountAverage, double kmAverage, double batteryAverage, double pollutionAverage) {
         this.taxiId = taxiId;
         this.rideCountAverage = rideCountAverage;
