@@ -93,15 +93,14 @@ public class Main {
                     String getPath = "/statistics/get/" + Utils.toMachineDate(t1) + "/" + Utils.toMachineDate(t2);
                     clientResponse = getRequest(client, serverAddress+getPath);
                     StatisticsAverages averages = clientResponse.getEntity(StatisticsAverages.class);
-                    System.out.println("Taxi Id: " + averages.getTaxiId()
-                            + ", average ride count: " + df.format(averages.getRideCountAverage())
+                    System.out.println("Average ride count: " + df.format(averages.getRideCountAverage())
                             + ", average km driven: " + df.format(averages.getKmAverage())
                             + ", average battery level: " + df.format(averages.getBatteryAverage())
                             + ", average pollution level: " + df.format(averages.getPollutionAverage()));
                 }
 
-            } catch (IOException e) {
-                e.printStackTrace();
+            } catch (Throwable t) {
+                //t.printStackTrace();
                 System.out.println("Please insert a valid input!");
             }
 

@@ -51,21 +51,24 @@ public class StatisticsManager {
         List<TaxiInfo> taxisInfo = TaxisInfoManager.getInstance().getTaxiInfoList();
         for (TaxiInfo taxiInfo : taxisInfo){
             List<StatisticsData> singleTaxiStats = statisticsDataMap.get(taxiInfo.getId());
+            for (StatisticsData data : singleTaxiStats){
+                if (data.getTimestamp() >= t1 && data.getTimestamp() < t2){
+                    dataList.add(data);
+                }
+            }
         }
 
-
-
-        double rideCountAverage = subDataList.stream().mapToDouble(StatisticsData::getRidesCount).average().orElse(0.0);
-        double kmAverage = subDataList.stream().mapToDouble(StatisticsData::getKm).average().orElse(0.0);
-        double batteryAverage = subDataList.stream().mapToDouble(StatisticsData::getBatteryLevel).average().orElse(0.0);
-        double pollutionAverage = subDataList.stream()
+        double rideCountAverage = dataList.stream().mapToDouble(StatisticsData::getRidesCount).average().orElse(0.0);
+        double kmAverage = dataList.stream().mapToDouble(StatisticsData::getKm).average().orElse(0.0);
+        double batteryAverage = dataList.stream().mapToDouble(StatisticsData::getBatteryLevel).average().orElse(0.0);
+        double pollutionAverage = dataList.stream()
                                                 .mapToDouble(
                                                         statisticsData -> statisticsData.getPollutionAverages()
                                                                                         .stream()
                                                                                         .mapToDouble(value -> value)
                                                                                         .average().orElse(0.0)
                                                 ).average().orElse(0.0);
-        return new StatisticsAverages(taxiId, rideCountAverage, kmAverage, batteryAverage, pollutionAverage);
+        return new StatisticsAverages("noId", rideCountAverage, kmAverage, batteryAverage, pollutionAverage);
     }
 
     public synchronized StatisticsAverages getAverages(long t1, long t2){

@@ -27,12 +27,12 @@ public class Utils {
         return format.format(date);
     }
 
-    public static long toMachineDate(String dateString){
-        try {
-            SimpleDateFormat format = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
-            Date date = format.parse(dateString);
-            return date.getTime();
-        } catch (ParseException e) {throw new RuntimeException(e);}
+    public static long toMachineDate (String dateString) throws ParseException {
+
+        SimpleDateFormat format = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+        Date date = format.parse(dateString);
+        return date.getTime();
+
     }
 }
 
