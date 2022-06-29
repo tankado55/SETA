@@ -25,17 +25,19 @@ public class Main {
 
         // TODO bisognerebbe sottoscriversi a un topic dove SETA dichiara di essersi avviato, in questo caso ripubblico le availaability
 
-        // elezione
-        // pubblica di nuovo availability e si sottoscrive
-
-        // ciclo provvisorio
-        // System.out.println("\n ***  Press a random key to exit *** \n");
         Scanner command = new Scanner(System.in);
         while (true){
             String input = command.nextLine();
             if (input.equals("recharge")){
                 taxi.getBattery().setTriggerForRechargeAfterRideCompleted();
                 taxi.startExitRequest();
+            }
+            else if(input.equals("quit")){
+                taxi.setExitTrigger();
+                taxi.startExitRequest();
+            }
+            else{
+                System.out.println("Insert a valid input");
             }
         }
 

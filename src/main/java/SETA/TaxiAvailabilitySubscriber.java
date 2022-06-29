@@ -59,6 +59,15 @@ public class TaxiAvailabilitySubscriber {
                         }).start();
 
                     }
+                    else if (topic.equals("completedRides")){
+                        try {
+                            JSONObject msg = new JSONObject(new String(message.getPayload()));
+                            RideChecker.getInstance().addRide(msg.getInt("rideId"));
+                        } catch (JSONException e) {
+                            throw new RuntimeException(e);
+                        }
+
+                    }
                 }
 
                 public void connectionLost(Throwable cause) {
@@ -74,6 +83,7 @@ public class TaxiAvailabilitySubscriber {
             System.out.println(clientId + "SETA -  Subscribing to taxiAvailability ...");
             client.subscribe(topic,SETA.qos);
             client.subscribe("exitRequest", SETA.qos);
+            client.subscribe("completedRides", SETA.qos);
             System.out.println(clientId + " Subscribed to topics : " + topic);
 
             /*

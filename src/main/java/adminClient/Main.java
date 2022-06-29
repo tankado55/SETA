@@ -98,6 +98,9 @@ public class Main {
                             + ", average battery level: " + df.format(averages.getBatteryAverage())
                             + ", average pollution level: " + df.format(averages.getPollutionAverage()));
                 }
+                else{
+                    System.out.println("Insert a valid number");
+                }
 
             } catch (Throwable t) {
                 //t.printStackTrace();

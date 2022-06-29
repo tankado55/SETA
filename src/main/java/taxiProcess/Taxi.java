@@ -78,6 +78,8 @@ public class Taxi {
     private PM10Buffer pm10Buffer;
     private RidesStatsBuffer rideStatsBuffer = new RidesStatsBuffer();
 
+    private Boolean toExit = false;
+
     // Grpc
     private List<DelayedResponse> delayedRideResponses = new ArrayList<>();
     private List<StreamObserver<RechargeServicesOuterClass.RechargeResponse>> delayedRechargeResponses = new ArrayList<>();
@@ -229,7 +231,7 @@ public class Taxi {
 
                             if (topic.equals(ridesTopic + position.getDistrict()) && !authorizedExit){
 
-                                if (!busy){
+                                if (!busy){// TODO test senza
                                     synchronized (parallelElectionCount){
                                         ++parallelElectionCount;
                                     }
@@ -274,7 +276,7 @@ public class Taxi {
                                                     finalRideAcquisition.acked();
                                                 }
                                             }
-                                            System.out.println("Received reply Ride" + finalRide.getId() + ", discard? " + response.getDiscard());
+                                            System.out.println("Received reply Ride" + finalRide.getId() + ", discard? " + response.getDiscard() + " from " + taxiContact.getId());
 
                                             //closing the channel
                                             channel.shutdown();
@@ -289,16 +291,28 @@ public class Taxi {
                                             e.printStackTrace();
                                         }
                                     }
+
                                     if (finalRideAcquisition.getAckToReceive() <= 0){
+                                        Boolean privateOk = false;
                                         synchronized (busyLock){
                                             synchronized (busy){
-                                                busy = true;
+                                                if (!busy){
+                                                    busy = true;
+                                                    privateOk = true; // an alternative could be to start a new thread
+                                                }
                                             }
+                                        }
+                                        if (privateOk){
                                             handleRide(finalRide);
                                         }
+                                        else{
+                                            // nothing, the ride Request will be leave to others
+                                        }
+
                                     }
                                     else{
                                         System.out.println("\u001B[33m" + "Ride " + ride.getId() + " taken by another taxi" + "\u001B[0m");
+
                                     }
                                     synchronized (parallelElectionCount){
                                         --parallelElectionCount;
@@ -310,8 +324,8 @@ public class Taxi {
                         }
                         else if (topic.equals("exitResponse" + id)){
                             authorizedExit = true;
-
-                            if (parallelElectionCount == 0 && authorizedExit && battery.toRecharge()){
+                            // If a taxi receive an authorized exit the busy status will never become true after the if
+                            if (parallelElectionCount == 0  && battery.toRecharge() && !busy){
                                 System.out.println("Received exit authorization from SETA");
                                 startRechargeRequest();
                             }
@@ -451,6 +465,8 @@ public class Taxi {
             e.printStackTrace();
         }
 
+        publishRideCompleted(ride.getId());
+
         System.out.println("Taxi n." + id + ", ride " + ride.getId() + " Completed!");
         // discharge and change of position
         battery.discarge(getDistance(ride.getStartingPosition()));
@@ -494,6 +510,14 @@ public class Taxi {
             throw new RuntimeException(e);
         }
     }
+    public void publishRideCompleted(String rideId){
+        try {
+            JSONObject payload = new JSONObject();
+            payload.put("rideId", rideId);
+            MqttMessage msg = new MqttMessage(payload.toString().getBytes());
+            client.publish("completedRides", msg);
+        } catch (MqttException | JSONException e) {e.printStackTrace();}
+    }
 
     private void publishAvailability(int district){
         TaxiAvailabilityMsg payload = TaxiAvailabilityMsg.newBuilder().setDistrict(position.getDistrict()).build();
@@ -523,6 +547,10 @@ public class Taxi {
         MqttMessage msg = new MqttMessage(payload.toString().getBytes());
         client.publish("exitRequest", msg);
         } catch (MqttException | JSONException e) {e.printStackTrace();}
+    }
+
+    public void setExitTrigger(){
+        toExit = true;
     }
 }
 
