@@ -30,7 +30,7 @@ public class RideHandlingImpl extends RideHandlingServiceGrpc.RideHandlingServic
             return;
         }
         else if (request.getDistance() == myDistance){
-            if (request.getBattery() < taxi.getBatteryLevel()){
+            if (request.getBattery() > taxi.getBatteryLevel()){
                 RideHandlingReply response = RideHandlingReply.newBuilder().setDiscard(false).build();
                 responseObserver.onNext(response);
                 responseObserver.onCompleted();

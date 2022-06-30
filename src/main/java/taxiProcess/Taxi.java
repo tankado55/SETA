@@ -77,7 +77,7 @@ public class Taxi {
     public Object charging = new Object();
     private PM10Buffer pm10Buffer;
     private RidesStatsBuffer rideStatsBuffer = new RidesStatsBuffer();
-
+    private String currentRide = new String();
     private Boolean toExit = false;
 
     // Grpc
@@ -124,9 +124,18 @@ public class Taxi {
 
         synchronized (busy){
             if (busy){
-                RideHandlingReply response = RideHandlingReply.newBuilder().setDiscard(false).build();
-                dr.getObserver().onNext(response);
-                dr.getObserver().onCompleted();
+                synchronized (currentRide){
+                    if (currentRide.equals(dr.getRideRequest().getId())){
+                        RideHandlingReply response = RideHandlingReply.newBuilder().setDiscard(true).build();
+                        dr.getObserver().onNext(response);
+                        dr.getObserver().onCompleted();
+                    }
+                    else{
+                        RideHandlingReply response = RideHandlingReply.newBuilder().setDiscard(false).build();
+                        dr.getObserver().onNext(response);
+                        dr.getObserver().onCompleted();
+                    }
+                }
             }
             else{
                 synchronized (delayedRideResponses){
@@ -137,9 +146,18 @@ public class Taxi {
         }
     }
 
-    public void addDelayedRechargeResponse(StreamObserver<RechargeServicesOuterClass.RechargeResponse> response){
+    public void addDelayedRechargeResponse(StreamObserver<RechargeServicesOuterClass.RechargeResponse> responseObserver){
         synchronized (delayedRechargeResponses){
-            delayedRechargeResponses.add(response);
+            if (battery.isCharging){
+                System.out.println("I delayed another taxi recharge");
+                delayedRechargeResponses.add(responseObserver);
+            }
+            else{
+                RechargeServicesOuterClass.RechargeResponse response = RechargeServicesOuterClass.RechargeResponse.newBuilder().setOk(true).build();
+                responseObserver.onNext(response);
+                responseObserver.onCompleted();
+            }
+
         }
     }
 
@@ -231,7 +249,7 @@ public class Taxi {
 
                             if (topic.equals(ridesTopic + position.getDistrict()) && !authorizedExit){
 
-                                if (!busy){// TODO test senza
+                                //if (!busy){// TODO test senza
                                     synchronized (parallelElectionCount){
                                         ++parallelElectionCount;
                                     }
@@ -319,7 +337,7 @@ public class Taxi {
                                     }
                                     if (parallelElectionCount == 0 && authorizedExit && battery.toRecharge())
                                         startRechargeRequest();
-                                }
+                                //}
 
                         }
                         else if (topic.equals("exitResponse" + id)){
@@ -356,7 +374,7 @@ public class Taxi {
     }
 
     private void startRechargeRequest(){
-        synchronized (busyLock){
+        synchronized (busy){
             synchronized (busy){
                 busy = true;
             }
@@ -416,6 +434,9 @@ public class Taxi {
         authorizedExit = false;
         wantToCharge = false;
         battery.removeTriggerForRechargeAfterRideCompleted();
+        synchronized (busy){
+            busy = false;
+        }
     }
     public void subscribeToRideRequests(){
 
@@ -440,6 +461,9 @@ public class Taxi {
 
     private void handleRide(RideRequest ride){
         //unSubscribeToRideRequests();
+        synchronized (currentRide){
+            currentRide = ride.getId();
+        }
 
         System.out.println("Taxi n. " + id + " taking charge of ride request n. " + ride.getId());
 
