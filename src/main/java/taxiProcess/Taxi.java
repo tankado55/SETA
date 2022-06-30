@@ -31,10 +31,7 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.time.Instant;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 import it.ewlab.district.TaxiAvailabilityMsgOuterClass.*;
 import simulators.PM10Buffer;
@@ -79,6 +76,10 @@ public class Taxi {
     private RidesStatsBuffer rideStatsBuffer = new RidesStatsBuffer();
     private String currentRide = new String();
     private Boolean toExit = false;
+
+    private Boolean subscribet = false;
+
+    private LinkedList<RideAcquisition> rideAcquisitions = new LinkedList<>();
 
     // Grpc
     private List<DelayedResponse> delayedRideResponses = new ArrayList<>();
@@ -261,6 +262,7 @@ public class Taxi {
                                         try {
                                             ride = new RideRequest(RideRequestMsg.parseFrom(message.getPayload()));
                                             rideAcquisition = new RideAcquisition(taxiContacts.size(), ride);
+
                                             System.out.println("Ride " + ride.getId() + " arrived on topic " + topic);
                                         } catch (InvalidProtocolBufferException e) {
                                             e.printStackTrace();
@@ -270,6 +272,9 @@ public class Taxi {
                                     List<Thread> requestThreads = new ArrayList<Thread>();
                                     RideRequest finalRide = ride;
                                     RideAcquisition finalRideAcquisition = rideAcquisition;
+                                    synchronized (rideAcquisitions){
+                                        rideAcquisitions.add(finalRideAcquisition);
+                                    }
                                     Double distanceFromRide = getDistance(ride.getStartingPosition());
                                     for (TaxiInfo taxiContact : currentContacts){
                                         String target = taxiContact.getIp() + ":" + taxiContact.getPort();
@@ -308,6 +313,7 @@ public class Taxi {
                                         } catch (InterruptedException e) {
                                             e.printStackTrace();
                                         }
+
                                     }
 
                                     if (finalRideAcquisition.getAckToReceive() <= 0){
@@ -321,6 +327,7 @@ public class Taxi {
                                             }
                                         }
                                         if (privateOk){
+
                                             handleRide(finalRide);
                                         }
                                         else{
@@ -434,9 +441,10 @@ public class Taxi {
         authorizedExit = false;
         wantToCharge = false;
         battery.removeTriggerForRechargeAfterRideCompleted();
+        /*
         synchronized (busy){
             busy = false;
-        }
+        }*/
     }
     public void subscribeToRideRequests(){
 
@@ -516,23 +524,28 @@ public class Taxi {
         if (battery.toRecharge() || battery.getLevel() < 30.0){
             startRechargeRequest();
         }
+        /*
         synchronized (busy){
             busy = false;
-        }
+        }*/
 
         subscribeToRideRequests();
         publishAvailability();
         }
 
     public void publishAvailability(){
-        TaxiAvailabilityMsg payload = TaxiAvailabilityMsg.newBuilder().setDistrict(position.getDistrict()).build();
-        MqttMessage message = new MqttMessage(payload.toByteArray());
-        try {
-            client.publish(taxiAvailabilityTopic, message);
-            System.out.println("to SETA, I'm available on district" + position.getDistrict());
-        } catch (MqttException e) {
-            throw new RuntimeException(e);
+        synchronized (busy){
+            TaxiAvailabilityMsg payload = TaxiAvailabilityMsg.newBuilder().setDistrict(position.getDistrict()).build();
+            MqttMessage message = new MqttMessage(payload.toByteArray());
+            try {
+                client.publish(taxiAvailabilityTopic, message);
+                System.out.println("to SETA, I'm available on district" + position.getDistrict());
+            } catch (MqttException e) {
+                throw new RuntimeException(e);
+            }
+            busy = false;
         }
+
     }
     public void publishRideCompleted(String rideId){
         try {
