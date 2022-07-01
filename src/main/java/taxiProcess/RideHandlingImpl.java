@@ -14,13 +14,38 @@ public class RideHandlingImpl extends RideHandlingServiceGrpc.RideHandlingServic
         Taxi taxi = Taxi.getInstance();
         double myDistance = taxi.getDistance(new Position(request.getRideRequestMsg().getStart()));
 
+        // different district, always discard FALSE
         synchronized (taxi.getPosition()){
             Position start = new Position(request.getRideRequestMsg().getStart());
             if (taxi.getPosition().getDistrict() != start.getDistrict()){
+                System.out.println("ride" + request.getRideRequestMsg().getId() +"I'm in another district, I don't want the ride!");
                 RideHandlingReply response = RideHandlingReply.newBuilder().setDiscard(false).build();
                 responseObserver.onNext(response);
                 responseObserver.onCompleted();
                 return;
+            }
+        }
+
+        synchronized (taxi.busy){
+            if (taxi.busy){
+                if (taxi.getCurrentRideId().equals(request.getRideRequestMsg().getId())){
+                    RideHandlingReply response = RideHandlingReply.newBuilder().setDiscard(true).build();
+                    responseObserver.onNext(response);
+                    responseObserver.onCompleted();
+                }
+                else{
+                    System.out.println("ride" + request.getRideRequestMsg().getId() +"I'm busy, I don't want the ride!");
+                    RideHandlingReply response = RideHandlingReply.newBuilder().setDiscard(false).build();
+                    responseObserver.onNext(response);
+                    responseObserver.onCompleted();
+                }
+                return;
+            }
+        }
+
+        synchronized (taxi.electionLock){
+            if (!taxi.electionLock){
+                taxi.electionQueue.put(new RideRequest(request.getRideRequestMsg()));
             }
         }
         if (request.getDistance() < myDistance){

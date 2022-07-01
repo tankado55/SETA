@@ -45,7 +45,7 @@ public class StatisticsModule extends Thread{
         RidesStats stats = ridesStatsBuffer.readAllAndClean();
         StatisticsData data = new StatisticsData(taxiId, timestamp, batteryLevel, stats.getKm(), stats.getRideCount(), new ArrayList<>(pollutionAverages));
         ClientResponse clientResponse = postRequest(client, Main.SERVERADDRESS+postPath,data);
-        System.out.println(clientResponse);
+        //System.out.println(clientResponse);
     }
 
     private ClientResponse postRequest(Client client, String url, StatisticsData d){

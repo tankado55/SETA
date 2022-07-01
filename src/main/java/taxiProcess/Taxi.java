@@ -22,6 +22,7 @@ import it.ewlab.ride.GreetingsServiceOuterClass.*;
 import it.ewlab.ride.RideHandlingServiceGrpc;
 import it.ewlab.ride.RideHandlingServiceGrpc.*;
 import it.ewlab.ride.RideHandlingServiceOuterClass.*;
+import it.ewlab.ride.RideRequestMsgOuterClass;
 import it.ewlab.ride.RideRequestMsgOuterClass.*;
 import org.codehaus.jettison.json.JSONException;
 import org.codehaus.jettison.json.JSONObject;
@@ -36,6 +37,8 @@ import java.util.*;
 import it.ewlab.district.TaxiAvailabilityMsgOuterClass.*;
 import simulators.PM10Buffer;
 import simulators.PM10Simulator;
+import taxiProcess.election.ElectionMaker;
+import taxiProcess.election.ElectionQueue;
 import taxiProcess.statistics.RidesStats;
 import taxiProcess.statistics.RidesStatsBuffer;
 import taxiProcess.statistics.StatisticsModule;
@@ -67,7 +70,7 @@ public class Taxi {
     private Position position;
     private Taxi(){}
     private Battery battery = new Battery();
-    private Boolean busy = false;
+    public Boolean busy = false;
     private Boolean authorizedExit = false;
     private Integer parallelElectionCount = 0;
     public  Boolean wantToCharge = false;
@@ -78,19 +81,39 @@ public class Taxi {
     private Boolean toExit = false;
 
     private Boolean subscribet = false;
-
     private LinkedList<RideAcquisition> rideAcquisitions = new LinkedList<>();
+    public Boolean electionLock = false;
+    private String currentRideId = new String();
+
+    public ElectionQueue electionQueue = new ElectionQueue();
 
     // Grpc
     private List<DelayedResponse> delayedRideResponses = new ArrayList<>();
     private List<StreamObserver<RechargeServicesOuterClass.RechargeResponse>> delayedRechargeResponses = new ArrayList<>();
-    private List<TaxiInfo> taxiContacts = new ArrayList<TaxiInfo>();
+    public List<TaxiInfo> taxiContacts = new ArrayList<TaxiInfo>();
     public Object busyLock = new Object();
+    private ElectionMaker electionMaker;
 
     public static Taxi getInstance(){
         if (instance == null)
             instance = new Taxi();
         return  instance;
+    }
+
+    public synchronized void setCurrentRideId(String currentRideId) {
+        this.currentRideId = currentRideId;
+    }
+
+    public String getCurrentRideId() {
+        return currentRideId;
+    }
+
+    public Boolean getElectionLock() {
+        return electionLock;
+    }
+
+    public synchronized void setElectionLock(Boolean electionLock) {
+        this.electionLock = electionLock;
     }
 
     public void init(){
@@ -106,6 +129,8 @@ public class Taxi {
         setupMqtt();
         subscribeToRideRequests();
         publishAvailability();
+        electionMaker = new ElectionMaker(this, electionQueue);
+        electionMaker.start();
         exitResponseTopic = "exitResponse" + id;
     }
 
@@ -142,7 +167,7 @@ public class Taxi {
                 synchronized (delayedRideResponses){
                     delayedRideResponses.add(dr);
                 }
-                System.out.println("Delayed Ride " + dr.getRideRequest().getId() + " my distance: " + getDistance(dr.getRideRequest().getStartingPosition()));
+                System.out.println("Delayed Ride" + dr.getRideRequest().getId() + " my distance: " + getDistance(dr.getRideRequest().getStartingPosition()));
             }
         }
     }
@@ -246,105 +271,10 @@ public class Taxi {
                 client.setCallback(new MqttCallback() {
                     public void messageArrived(String topic, MqttMessage message) {
                         // Called when a message arrives from the server that matches any subscription made by the client
-                        new Thread(() -> {
 
-                            if (topic.equals(ridesTopic + position.getDistrict()) && !authorizedExit){
+                        if (topic.equals(ridesTopic + position.getDistrict()) && !authorizedExit){
 
-                                //if (!busy){// TODO test senza
-                                    synchronized (parallelElectionCount){
-                                        ++parallelElectionCount;
-                                    }
-
-                                    RideAcquisition rideAcquisition = null;
-                                    RideRequest ride = null;
-                                    List<TaxiInfo> currentContacts;
-                                    synchronized (taxiContacts) {
-                                        try {
-                                            ride = new RideRequest(RideRequestMsg.parseFrom(message.getPayload()));
-                                            rideAcquisition = new RideAcquisition(taxiContacts.size(), ride);
-
-                                            System.out.println("Ride " + ride.getId() + " arrived on topic " + topic);
-                                        } catch (InvalidProtocolBufferException e) {
-                                            e.printStackTrace();
-                                        }
-                                        currentContacts = new ArrayList<>(taxiContacts);
-                                    }
-                                    List<Thread> requestThreads = new ArrayList<Thread>();
-                                    RideRequest finalRide = ride;
-                                    RideAcquisition finalRideAcquisition = rideAcquisition;
-                                    synchronized (rideAcquisitions){
-                                        rideAcquisitions.add(finalRideAcquisition);
-                                    }
-                                    Double distanceFromRide = getDistance(ride.getStartingPosition());
-                                    for (TaxiInfo taxiContact : currentContacts){
-                                        String target = taxiContact.getIp() + ":" + taxiContact.getPort();
-                                        // a new thread is launched for each message to send
-                                        Thread requestThread = new Thread(() -> {
-                                            final ManagedChannel channel = ManagedChannelBuilder.forTarget(target).usePlaintext().build();
-
-                                            //creating a blocking stub on the channel
-                                            RideHandlingServiceBlockingStub stub = RideHandlingServiceGrpc.newBlockingStub(channel);
-
-                                            //creating the HelloResponse object which will be provided as input to the RPC method
-                                            RideHandlingRequest request = RideHandlingRequest.newBuilder()
-                                                    .setRideRequestMsg(finalRide.toMsg())
-                                                    .setDistance(distanceFromRide)
-                                                    .setBattery((int)battery.getLevel())
-                                                    .setTaxiId(id).build();
-                                            System.out.println("I want Ride " +  finalRide.getId() + " my distance: " + getDistance(finalRide.getStartingPosition()));
-                                            RideHandlingReply response = stub.startRideHandling(request);
-
-                                            if (!response.getDiscard()){
-                                                synchronized (finalRideAcquisition){
-                                                    finalRideAcquisition.acked();
-                                                }
-                                            }
-                                            System.out.println("Received reply Ride" + finalRide.getId() + ", discard? " + response.getDiscard() + " from " + taxiContact.getId());
-
-                                            //closing the channel
-                                            channel.shutdown();
-                                        });
-                                        requestThread.start();
-                                        requestThreads.add(requestThread);// save the threads to make the join
-                                    }
-                                    for (Thread t : requestThreads){
-                                        try {
-                                            t.join(); //necessaria per attendere le delayedReply
-                                        } catch (InterruptedException e) {
-                                            e.printStackTrace();
-                                        }
-
-                                    }
-
-                                    if (finalRideAcquisition.getAckToReceive() <= 0){
-                                        Boolean privateOk = false;
-                                        synchronized (busyLock){
-                                            synchronized (busy){
-                                                if (!busy){
-                                                    busy = true;
-                                                    privateOk = true; // an alternative could be to start a new thread
-                                                }
-                                            }
-                                        }
-                                        if (privateOk){
-
-                                            handleRide(finalRide);
-                                        }
-                                        else{
-                                            // nothing, the ride Request will be leave to others
-                                        }
-
-                                    }
-                                    else{
-                                        System.out.println("\u001B[33m" + "Ride " + ride.getId() + " taken by another taxi" + "\u001B[0m");
-
-                                    }
-                                    synchronized (parallelElectionCount){
-                                        --parallelElectionCount;
-                                    }
-                                    if (parallelElectionCount == 0 && authorizedExit && battery.toRecharge())
-                                        startRechargeRequest();
-                                //}
+                            startElection(topic, message);
 
                         }
                         else if (topic.equals("exitResponse" + id)){
@@ -358,7 +288,7 @@ public class Taxi {
                                 exit();
                             }
                         }
-                        }).start();
+
 
                     }
                     public void connectionLost(Throwable cause) {
@@ -374,6 +304,17 @@ public class Taxi {
                 throw new RuntimeException(e);
             }
         }
+    }
+
+    private void startElection(String topic, MqttMessage message){
+
+        RideRequest ride = null;
+        try {ride = new RideRequest(RideRequestMsg.parseFrom(message.getPayload()));} catch (InvalidProtocolBufferException e) {throw new RuntimeException(e);}
+
+        electionQueue.put(ride);
+
+        if (parallelElectionCount == 0 && authorizedExit && battery.toRecharge())
+            startRechargeRequest();
     }
 
     private void exit(){
@@ -467,10 +408,28 @@ public class Taxi {
         }
     }
 
-    private void handleRide(RideRequest ride){
+    public void clearRide(String rideId){
+        synchronized (delayedRideResponses){
+            DelayedResponse toRemove = null;
+            for (DelayedResponse delayedResponse : delayedRideResponses){
+                RideHandlingReply response;
+                if (delayedResponse.getRideRequest().getId().equals(rideId)) {
+                    response = RideHandlingReply.newBuilder().setDiscard(true).build();
+                    delayedResponse.getObserver().onNext(response);
+                    delayedResponse.getObserver().onCompleted();
+                    toRemove = delayedResponse;
+                }
+            }
+            if (toRemove != null)
+                delayedRideResponses.remove(toRemove);
+        }
+    }
+
+    public void handleRide(RideRequest ride){
         //unSubscribeToRideRequests();
-        synchronized (currentRide){
-            currentRide = ride.getId();
+
+        synchronized (busy){
+            busy = true;
         }
 
         System.out.println("Taxi n. " + id + " taking charge of ride request n. " + ride.getId());
@@ -524,11 +483,12 @@ public class Taxi {
         if (battery.toRecharge() || battery.getLevel() < 30.0){
             startRechargeRequest();
         }
-        /*
+        /* messo dentro publishavailability
         synchronized (busy){
             busy = false;
         }*/
 
+        electionQueue.clear();
         subscribeToRideRequests();
         publishAvailability();
         }
