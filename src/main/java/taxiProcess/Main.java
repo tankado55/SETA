@@ -34,7 +34,11 @@ public class Main {
             }
             else if(input.equals("quit")){
                 taxi.setExitTrigger();
-                taxi.startExitRequest();
+                synchronized (taxi.busy){
+                    if (!taxi.busy)
+                        taxi.startExitRequest();
+                }
+
             }
             else{
                 System.out.println("Insert a valid input");

@@ -36,7 +36,7 @@ public class ElectionQueue {
         return ride;
     }
 
-    private Boolean contains(RideRequest ride){
+    private synchronized Boolean contains(RideRequest ride){
         for (RideRequest thisRide : rides){
             if (ride.getId().equals(thisRide.getId())){
                 return true;
@@ -45,7 +45,7 @@ public class ElectionQueue {
         return false;
     }
 
-    public void clear(){
+    public synchronized void clear(){
         rides.clear();
     }
 }

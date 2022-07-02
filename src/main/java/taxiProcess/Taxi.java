@@ -77,7 +77,7 @@ public class Taxi {
     public Object charging = new Object();
     private PM10Buffer pm10Buffer;
     private RidesStatsBuffer rideStatsBuffer = new RidesStatsBuffer();
-    private String currentRide = new String();
+    public String currentRide = new String();
     private Boolean toExit = false;
 
     private Boolean subscribet = false;
@@ -167,7 +167,7 @@ public class Taxi {
                 synchronized (delayedRideResponses){
                     delayedRideResponses.add(dr);
                 }
-                System.out.println("Delayed Ride" + dr.getRideRequest().getId() + " my distance: " + getDistance(dr.getRideRequest().getStartingPosition()));
+                System.out.println("Delayed Ride" + dr.getRideRequest().getId() + " my distance " + getDistance(dr.getRideRequest().getStartingPosition()));
             }
         }
     }
@@ -195,7 +195,8 @@ public class Taxi {
         try {
             id = br.readLine();
             //System.out.println("Insert Port");
-            port = "5050" + id;
+            int portInt = 50500 + Integer.parseInt(id);
+            port = String.valueOf(portInt);
             //TODO check inputs
         } catch (IOException e) {e.printStackTrace();}
         restClient = Client.create();
@@ -274,17 +275,18 @@ public class Taxi {
 
                         if (topic.equals(ridesTopic + position.getDistrict()) && !authorizedExit){
 
-                            startElection(topic, message);
+                            System.out.println("received mqtt message on topic:" + topic);
+                            startElection(topic, message); // it put ride in the queue
 
                         }
                         else if (topic.equals("exitResponse" + id)){
                             authorizedExit = true;
                             // If a taxi receive an authorized exit the busy status will never become true after the if
-                            if (parallelElectionCount == 0  && battery.toRecharge() && !busy){
+                            if (battery.toRecharge() && !busy){
                                 System.out.println("Received exit authorization from SETA");
                                 startRechargeRequest();
                             }
-                            else{
+                            else if(toExit && !busy){
                                 exit();
                             }
                         }
@@ -368,7 +370,9 @@ public class Taxi {
             Position rechargePosition = Utils.getRechargePosition(position.getDistrict());
             battery.discarge(getDistance(rechargePosition));
             System.out.println("Battery Level: " + battery.getLevel());
-            position = rechargePosition;
+            synchronized (position){
+                position = rechargePosition;
+            }
             battery.makeRecharge();
             synchronized (delayedRechargeResponses){
                 RechargeServicesOuterClass.RechargeResponse response = RechargeServicesOuterClass.RechargeResponse.newBuilder().setOk(true).build();
@@ -379,6 +383,11 @@ public class Taxi {
             }
             delayedRechargeResponses.clear();
         }
+        if(toExit){
+            exit();
+        }
+        if (authorizedExit)
+            publishAvailability();
         authorizedExit = false;
         wantToCharge = false;
         battery.removeTriggerForRechargeAfterRideCompleted();
@@ -432,7 +441,7 @@ public class Taxi {
             busy = true;
         }
 
-        System.out.println("Taxi n. " + id + " taking charge of ride request n. " + ride.getId());
+        System.out.println("Taxi n. " + id + " taking charge of ride" + ride.getId());
 
         // free al other rides
         synchronized (delayedRideResponses){
@@ -458,31 +467,44 @@ public class Taxi {
 
         publishRideCompleted(ride.getId());
 
-        System.out.println("Taxi n." + id + ", ride " + ride.getId() + " Completed!");
+        System.out.println("Taxi n." + id + ", ride" + ride.getId() + " Completed!");
         // discharge and change of position
         battery.discarge(getDistance(ride.getStartingPosition()));
         if (ride.getStartingPosition().getDistrict() != ride.getDestinationPosition().getDistrict()){
             unSubscribeToRideRequests();
-            position = ride.getDestinationPosition();
+            synchronized (position){
+                position = ride.getDestinationPosition();
+            }
             System.out.println("Moved to "+ position.getDistrict());
+            synchronized (authorizedExit){
+                if (authorizedExit){
+                    System.out.println("The availability below is published for previous district due to a change of district during recharge authorization process!");
+                    publishAvailability(ride.getStartingPosition().getDistrict()); // this is because the taxi obtained premise to leave in the starting district
+                }
+            }
         }else {
-            position = ride.getDestinationPosition();
+            synchronized (position){
+                position = ride.getDestinationPosition();
+            }
+
         }
         battery.discarge(getDistance(ride.getStartingPosition()));
         System.out.println("Battery Level: " + battery.getLevel());
         //stats
         rideStatsBuffer.add(getDistance(ride.getStartingPosition()));
 
-        synchronized (authorizedExit){
-            if (authorizedExit){
-                System.out.println("The availability below is published for previous district due to a change of district during recharge authorization process!");
-                publishAvailability(ride.getStartingPosition().getDistrict()); // this is because the taxi obtained premise to leave in the starting district
-            }
-        }
+
 
         if (battery.toRecharge() || battery.getLevel() < 30.0){
             startRechargeRequest();
         }
+        if (toExit){
+            exit();
+            return;
+        }
+
+
+
         /* messo dentro publishavailability
         synchronized (busy){
             busy = false;
@@ -491,7 +513,7 @@ public class Taxi {
         electionQueue.clear();
         subscribeToRideRequests();
         publishAvailability();
-        }
+    }
 
     public void publishAvailability(){
         synchronized (busy){
@@ -547,7 +569,9 @@ public class Taxi {
     }
 
     public void setExitTrigger(){
-        toExit = true;
+        synchronized (toExit){
+            toExit = true;
+        }
     }
 }
 

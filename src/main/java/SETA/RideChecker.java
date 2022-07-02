@@ -18,7 +18,7 @@ public class RideChecker {
 
     public synchronized void addRide(int rideId){
         if (completedRides.contains(rideId)){
-            System.out.println("PROBLEM!!!");
+            System.out.println("PROBLEM!!! ride " + rideId + " inserted two times!");
         }
         else{
             completedRides.add(rideId);

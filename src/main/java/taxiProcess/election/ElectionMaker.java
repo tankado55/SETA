@@ -31,8 +31,10 @@ public class ElectionMaker extends Thread{
     }
 
     private void startElection(RideRequest ride){
-        taxi.setCurrentRideId(ride.getId());
-        taxi.setElectionLock(true);
+        synchronized (taxi.electionLock){
+            taxi.setCurrentRideId(ride.getId());
+            taxi.setElectionLock(true);
+        }
 
         System.out.println("Starting Ride" + ride.getId() + " election!");
 
@@ -62,7 +64,7 @@ public class ElectionMaker extends Thread{
                         .setDistance(distanceFromRide)
                         .setBattery((int)taxi.getBattery().getLevel())
                         .setTaxiId(taxi.getId()).build();
-                System.out.println("I want Ride " +  finalRide.getId() + " my distance: " + taxi.getDistance(finalRide.getStartingPosition()));
+                System.out.println("I want Ride" +  finalRide.getId() + " my distance: " + distanceFromRide + " " +  taxi.getPosition().getX() + " " + taxi.getPosition().getY());
                 RideHandlingServiceOuterClass.RideHandlingReply response = stub.startRideHandling(request);
 
                 if (!response.getDiscard()){
@@ -86,14 +88,22 @@ public class ElectionMaker extends Thread{
             }
         }
 
-        if (finalRideAcquisition.getAckToReceive() <= 0){
+        synchronized (taxi.electionLock){
+            if (finalRideAcquisition.getAckToReceive() <= 0){
                 taxi.handleRide(finalRide);
-        }
-        else{
-            System.out.println("\u001B[33m" + "Ride " + ride.getId() + " taken by another taxi" + "\u001B[0m");
-            taxi.clearRide(ride.getId());
+            }
+            else{
+                System.out.println("\u001B[33m" + "Ride " + ride.getId() + " taken by another taxi" + "\u001B[0m");
+                taxi.clearRide(ride.getId());
+            }
+            taxi.setElectionLock(false);
         }
 
-        taxi.setElectionLock(false);
+    }
+
+    public void killThreads(List<Thread> threads){
+        for (Thread t : threads){
+            t.interrupt();
+        }
     }
 }
