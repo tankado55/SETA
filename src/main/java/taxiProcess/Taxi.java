@@ -10,6 +10,7 @@ import com.sun.jersey.api.client.Client;
 import com.sun.jersey.api.client.ClientHandlerException;
 import com.sun.jersey.api.client.ClientResponse;
 import com.sun.jersey.api.client.WebResource;
+import exceptions.taxi.IdAlreadyPresentException;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
 import io.grpc.stub.StreamObserver;
@@ -93,16 +94,17 @@ public class Taxi {
         return currentRideId;
     }
 
-    public Boolean getElectionLock() {
-        return electionLock;
-    }
-
     public synchronized void setElectionLock(Boolean electionLock) {
         this.electionLock = electionLock;
     }
 
     public void init(){
-        registerItself();
+        while (true){
+            try{
+                registerItself();
+                break;
+            } catch (Throwable t){System.out.println("taxi registration failed, try another id");}
+        }
         // Grpc
         GrpcServices grpc = GrpcServices.getInstance();
         grpc.setPort(Integer.valueOf(port));
@@ -135,7 +137,7 @@ public class Taxi {
     public Battery getBattery() {
         return battery;
     }
-
+/*
     public void addDelayedResponse(DelayedResponse dr){
 
         synchronized (busy){
@@ -161,7 +163,7 @@ public class Taxi {
             }
         }
     }
-
+*/
     public void addDelayedRechargeResponse(StreamObserver<RechargeServicesOuterClass.RechargeResponse> responseObserver){
         synchronized (delayedRechargeResponses){
             if (battery.isCharging){
@@ -173,11 +175,10 @@ public class Taxi {
                 responseObserver.onNext(response);
                 responseObserver.onCompleted();
             }
-
         }
     }
 
-    public void registerItself(){
+    public void registerItself() throws IdAlreadyPresentException {
         // Taxi send id, ip, port to server
         // it receive list of other taxiInfo and personal starting position generated randomly from server
         BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
@@ -196,6 +197,9 @@ public class Taxi {
         TaxiInfo myTaxiInfo = new TaxiInfo(id, ip, port);
         ClientResponse clientResponse = postRequest(restClient,Main.SERVERADDRESS+postPath,myTaxiInfo);
 
+        if (clientResponse.getStatus() == ClientResponse.Status.CONFLICT.getStatusCode()){
+            throw new IdAlreadyPresentException();
+        }
         TaxisRegistrationInfo regInfo = clientResponse.getEntity(TaxisRegistrationInfo.class);
 
         for (TaxiInfo info : regInfo.getTaxiInfoList()) {
@@ -375,6 +379,7 @@ public class Taxi {
                 }
             }
             System.out.println("All taxi known, I quit!");
+            System.exit(0);
         }
     }
 
@@ -407,7 +412,10 @@ public class Taxi {
                                     .setDistrict(getPosition().getDistrict())
                                             .setTime(battery.getRequestTimestamp()).build();
 
-                    RechargeServicesOuterClass.RechargeResponse response = stub.askPremiseToCharge(request);
+                    try{
+                        RechargeServicesOuterClass.RechargeResponse response = stub.askPremiseToCharge(request);
+                    }catch (Throwable t){System.out.println("taxi unavailable, you can charge by default");}
+
 
                     //closing the channel
                     channel.shutdown();
@@ -425,7 +433,7 @@ public class Taxi {
 
             System.out.println("\u001B[36m" + "I'm going to recharge station, I received permission from other taxis" + "\u001B[0m");
             Position rechargePosition = Utils.getRechargePosition(position.getDistrict());
-            battery.discarge(getDistance(rechargePosition));
+            battery.discharge(getDistance(rechargePosition));
             System.out.println("Battery Level: " + battery.getLevel());
             synchronized (position){
                 position = rechargePosition;
@@ -454,7 +462,7 @@ public class Taxi {
         try {
             int district = position.getDistrict();
             client.subscribe(ridesTopic + district,qos);
-            System.out.println("taxi n. " + id + " Subscribed to topics : " + ridesTopic + district);
+            System.out.println("Subscribed to topics : " + ridesTopic + district);
         } catch (MqttException e) {
             throw new RuntimeException(e);
         }
@@ -469,7 +477,7 @@ public class Taxi {
             e.printStackTrace();
         }
     }
-
+/*
     public void clearRide(String rideId){
         synchronized (delayedRideResponses){
             DelayedResponse toRemove = null;
@@ -486,7 +494,7 @@ public class Taxi {
                 delayedRideResponses.remove(toRemove);
         }
     }
-
+*/
     public void handleRide(RideRequest ride){
         //unSubscribeToRideRequests();
         publishRideCompleted(ride.getId(), ride.getStartingPosition().getDistrict());
@@ -498,6 +506,7 @@ public class Taxi {
         System.out.println("Taxi n. " + id + " taking charge of ride" + ride.getId());
 
         // free al other rides
+        /*
         synchronized (delayedRideResponses){
             for (DelayedResponse delayedResponse : delayedRideResponses){
                 RideHandlingReply response;
@@ -512,6 +521,7 @@ public class Taxi {
             }
             delayedRideResponses.clear();
         }
+        */
         // make the ride
         try {
             sleep(5000);
@@ -521,7 +531,7 @@ public class Taxi {
 
         System.out.println("Taxi n." + id + ", ride" + ride.getId() + " Completed!");
         // discharge and change of position
-        battery.discarge(getDistance(ride.getStartingPosition()));
+        battery.discharge(getDistance(ride.getStartingPosition()));
         if (ride.getStartingPosition().getDistrict() != ride.getDestinationPosition().getDistrict()){
             unSubscribeToRideRequests();
             synchronized (position){
@@ -540,7 +550,7 @@ public class Taxi {
             }
 
         }
-        battery.discarge(getDistance(ride.getStartingPosition()));
+        battery.discharge(getDistance(ride.getStartingPosition()));
         System.out.println("Battery Level: " + battery.getLevel());
         //stats
         rideStatsBuffer.add(getDistance(ride.getStartingPosition()));

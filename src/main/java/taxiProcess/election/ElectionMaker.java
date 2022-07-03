@@ -64,16 +64,22 @@ public class ElectionMaker extends Thread{
                         .setDistance(distanceFromRide)
                         .setBattery((int)taxi.getBattery().getLevel())
                         .setTaxiId(taxi.getId()).build();
-                System.out.println("I want Ride" +  finalRide.getId() + " my distance: " + distanceFromRide + " " +  taxi.getPosition().getX() + " " + taxi.getPosition().getY());
-                RideHandlingServiceOuterClass.RideHandlingReply response = stub.startRideHandling(request);
+                System.out.println("I want Ride" +  finalRide.getId() + " my distance: " + distanceFromRide);
+                try{
+                    RideHandlingServiceOuterClass.RideHandlingReply response = stub.startRideHandling(request);
 
-                if (!response.getDiscard()){
+                    if (!response.getDiscard()){
+                        synchronized (finalRideAcquisition){
+                            finalRideAcquisition.acked();
+                        }
+                    }
+                    System.out.println("Received reply Ride" + finalRide.getId() + ", discard? " + response.getDiscard() + " from " + taxiContact.getId());
+                } catch (Throwable t){
                     synchronized (finalRideAcquisition){
                         finalRideAcquisition.acked();
+                        System.out.println("taxi unavailable, acked by default");
                     }
                 }
-                System.out.println("Received reply Ride" + finalRide.getId() + ", discard? " + response.getDiscard() + " from " + taxiContact.getId());
-
                 //closing the channel
                 channel.shutdown();
             });
@@ -94,19 +100,9 @@ public class ElectionMaker extends Thread{
         }
         else{
             System.out.println("\u001B[33m" + "Ride " + ride.getId() + " taken by another taxi" + "\u001B[0m");
-            taxi.clearRide(ride.getId());
+            //taxi.clearRide(ride.getId());
             taxi.checkExitStatus();
         }
         taxi.setElectionLock(false);
-
-
-
-
-    }
-
-    public void killThreads(List<Thread> threads){
-        for (Thread t : threads){
-            t.interrupt();
-        }
     }
 }

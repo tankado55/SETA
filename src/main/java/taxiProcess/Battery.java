@@ -28,7 +28,7 @@ public class Battery {
         toRecharge = false;
     }
 
-    public void discarge(double quantity){
+    public void discharge(double quantity){
         level -= quantity;
     }
 
