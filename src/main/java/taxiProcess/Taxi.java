@@ -6,7 +6,6 @@ import beans.TaxiInfo;
 import beans.TaxisRegistrationInfo;
 import com.google.gson.Gson;
 import com.google.protobuf.InvalidProtocolBufferException;
-import com.google.protobuf.Timestamp;
 import com.sun.jersey.api.client.Client;
 import com.sun.jersey.api.client.ClientHandlerException;
 import com.sun.jersey.api.client.ClientResponse;
@@ -19,27 +18,20 @@ import it.ewlab.recharge.RechargeServicesOuterClass;
 import it.ewlab.ride.GreetingsServiceGrpc;
 import it.ewlab.ride.GreetingsServiceGrpc.*;
 import it.ewlab.ride.GreetingsServiceOuterClass.*;
-import it.ewlab.ride.RideHandlingServiceGrpc;
-import it.ewlab.ride.RideHandlingServiceGrpc.*;
 import it.ewlab.ride.RideHandlingServiceOuterClass.*;
-import it.ewlab.ride.RideRequestMsgOuterClass;
 import it.ewlab.ride.RideRequestMsgOuterClass.*;
 import org.codehaus.jettison.json.JSONException;
 import org.codehaus.jettison.json.JSONObject;
 import org.eclipse.paho.client.mqttv3.*;
-
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
-import java.time.Instant;
 import java.util.*;
-
 import it.ewlab.district.TaxiAvailabilityMsgOuterClass.*;
 import simulators.PM10Buffer;
 import simulators.PM10Simulator;
 import taxiProcess.election.ElectionMaker;
 import taxiProcess.election.ElectionQueue;
-import taxiProcess.statistics.RidesStats;
 import taxiProcess.statistics.RidesStatsBuffer;
 import taxiProcess.statistics.StatisticsModule;
 
@@ -71,16 +63,14 @@ public class Taxi {
     private Taxi(){}
     private Battery battery = new Battery();
     public Boolean busy = false;
-    private Boolean authorizedExit = false;
+    public Boolean authorizedExit = false;
     private Integer parallelElectionCount = 0;
     public  Boolean wantToCharge = false;
-    public Object charging = new Object();
     private PM10Buffer pm10Buffer;
     private RidesStatsBuffer rideStatsBuffer = new RidesStatsBuffer();
     public String currentRide = new String();
     private Boolean toExit = false;
 
-    private Boolean subscribet = false;
     private LinkedList<RideAcquisition> rideAcquisitions = new LinkedList<>();
     public Boolean electionLock = false;
     private String currentRideId = new String();
@@ -89,10 +79,9 @@ public class Taxi {
     private Object notifyReference = null;
 
     // Grpc
-    private List<DelayedResponse> delayedRideResponses = new ArrayList<>();
+    public List<DelayedResponse> delayedRideResponses = new ArrayList<>();
     private List<StreamObserver<RechargeServicesOuterClass.RechargeResponse>> delayedRechargeResponses = new ArrayList<>();
     public List<TaxiInfo> taxiContacts = new ArrayList<TaxiInfo>();
-    public Object busyLock = new Object();
     private ElectionMaker electionMaker;
 
     public static Taxi getInstance(){
@@ -242,11 +231,14 @@ public class Taxi {
     }
     public void removeTaxiInfo (TaxiInfo info){
         synchronized (taxiContacts){
+            TaxiInfo toRemove = null;
             for (TaxiInfo contact : taxiContacts){
-                if (contact.getId() == info.getId()){
-                    taxiContacts.remove(contact);
+                if (contact.getId().equals(info.getId())){
+                    toRemove = contact;
                 }
             }
+            if (toRemove != null)
+                taxiContacts.remove(toRemove);
         }
     }
 
@@ -255,6 +247,16 @@ public class Taxi {
         String input = new Gson().toJson(t);
         try {
             return webResource.type("application/json").post(ClientResponse.class, input);
+        } catch (ClientHandlerException e) {
+            System.out.println("Server non disponibile");
+            return null;
+        }
+    }
+    private ClientResponse deleteRequest(Client client, String url, TaxiInfo t){
+        WebResource webResource = client.resource(url);
+        String input = new Gson().toJson(t);
+        try {
+            return webResource.type("application/json").delete(ClientResponse.class, input);
         } catch (ClientHandlerException e) {
             System.out.println("Server non disponibile");
             return null;
@@ -283,11 +285,11 @@ public class Taxi {
                         else if (topic.equals("exitResponse" + id)){
                             authorizedExit = true;
                             // If a taxi receive an authorized exit the busy status will never become true after the if
-                            if (battery.toRecharge() && !busy){
+                            if (battery.toRecharge() && !busy && !electionLock){
                                 System.out.println("Received exit authorization from SETA");
                                 startRechargeRequest();
                             }
-                            else if(toExit && !busy){
+                            else if(toExit && !busy && !electionLock){
                                 exit();
                             }
                         }
@@ -313,14 +315,67 @@ public class Taxi {
         try {ride = new RideRequest(RideRequestMsg.parseFrom(message.getPayload()));} catch (InvalidProtocolBufferException e) {throw new RuntimeException(e);}
 
         electionQueue.put(ride);
+    }
 
-        if (authorizedExit && battery.toRecharge())
+    public void checkExitStatus(){
+        if (authorizedExit && toExit && !busy){
+            exit();
+            return;
+        }
+        if (authorizedExit && battery.toRecharge() && !busy){
             startRechargeRequest();
+            return;
+        }
     }
 
     private void exit(){
         System.out.println("Bye Bye");
+        busy = true;
+        //remove taxiInfo from server
+        // POST
+        String postPath = "/taxis/delete";
+        TaxiInfo myTaxiInfo = new TaxiInfo(id, ip, port);
+        ClientResponse clientResponse = deleteRequest(restClient,Main.SERVERADDRESS+postPath,myTaxiInfo);
+        System.out.println("deleted from server");
+        System.out.println(clientResponse.getStatusInfo());
+
+        //send a message to all taxi
+        List<TaxiInfo> currentContacts;
+        synchronized (taxiContacts) { //TODO incasplutation
+            currentContacts = new ArrayList<>(taxiContacts);
+        }
+        List<Thread> requestThreads = new ArrayList<Thread>();
+        for (TaxiInfo taxiContact : currentContacts) {
+            String target = taxiContact.getIp() + ":" + taxiContact.getPort();
+            Thread requestThread = new Thread(() -> {
+                final ManagedChannel channel = ManagedChannelBuilder.forTarget(target).usePlaintext().build();
+
+                //creating a blocking stub on the channel
+                GreetingsServiceBlockingStub stub = GreetingsServiceGrpc.newBlockingStub(channel);
+
+                //creating the HelloResponse object which will be provided as input to the RPC method
+                GreetingsRequest.TaxiInfoMsg taxiInfoMsg= GreetingsRequest.TaxiInfoMsg.newBuilder().setId(id).setIp(ip).setPort(Integer.valueOf(port)).build();
+                GreetingsRequest request = GreetingsRequest.newBuilder().setTaxiInfoMsg(taxiInfoMsg).build();
+
+                GreetingsResponse response = stub.bye(request);
+
+                //closing the channel
+                channel.shutdown();
+            });
+            requestThread.start();
+            requestThreads.add(requestThread);// save the threads to make the join
+            for (Thread t : requestThreads){
+                try {
+                    t.join();
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+            }
+            System.out.println("All taxi known, I quit!");
+        }
     }
+
+
 
     private void startRechargeRequest(){
         synchronized (busy){
@@ -577,12 +632,3 @@ public class Taxi {
         this.notifyReference = o;
     }
 }
-
-// TODO
-// ricarica (Demolli)                   1G
-// 1. pollution (Demolli/Piscitelli)    1G
-// 2. statistiche REST                  2G
-// client                               2G
-// exit controllata
-
-// se id è già presente consentire di reinserirlo

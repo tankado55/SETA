@@ -80,6 +80,7 @@ public class ElectionMaker extends Thread{
             requestThread.start();
             requestThreads.add(requestThread);// save the threads to make the join
         }
+
         for (Thread t : requestThreads){
             try {
                 t.join(); //necessaria per attendere le delayedReply
@@ -88,16 +89,18 @@ public class ElectionMaker extends Thread{
             }
         }
 
-        synchronized (taxi.electionLock){
-            if (finalRideAcquisition.getAckToReceive() <= 0){
-                taxi.handleRide(finalRide);
-            }
-            else{
-                System.out.println("\u001B[33m" + "Ride " + ride.getId() + " taken by another taxi" + "\u001B[0m");
-                taxi.clearRide(ride.getId());
-            }
-            taxi.setElectionLock(false);
+        if (finalRideAcquisition.getAckToReceive() <= 0){
+            taxi.handleRide(finalRide);
         }
+        else{
+            System.out.println("\u001B[33m" + "Ride " + ride.getId() + " taken by another taxi" + "\u001B[0m");
+            taxi.clearRide(ride.getId());
+            taxi.checkExitStatus();
+        }
+        taxi.setElectionLock(false);
+
+
+
 
     }
 

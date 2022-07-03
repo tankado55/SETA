@@ -45,13 +45,11 @@ public class RideHandlingImpl extends RideHandlingServiceGrpc.RideHandlingServic
                 }
             //}
 
-        synchronized (taxi.electionLock){
-
             if (!taxi.electionLock && taxi.getPosition().getDistrict() == start.getDistrict()){
                 System.out.println("in queue from impl");
                 taxi.electionQueue.put(new RideRequest(request.getRideRequestMsg()));
             }
-        }
+
 
 
         if (request.getDistance() < taxi.getDistance(rideReq.getStartingPosition())){

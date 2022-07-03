@@ -38,8 +38,13 @@ public class TaxisInfoManager {
     }
 
     public synchronized void delete(String id) throws TaxiNotPresentException {
-        if (taxiInfoList.contains(id))
-            taxiInfoList.remove(id);
+        TaxiInfo toRemove = null;
+        for (TaxiInfo info : taxiInfoList){
+            if (info.getId().equals(id))
+                toRemove = info;
+        }
+        if (toRemove != null)
+            taxiInfoList.remove(toRemove);
         else{
             throw new TaxiNotPresentException();
         }
