@@ -7,18 +7,25 @@ public class RideRequestQueue {
     private ArrayList<RideRequest> rides = new ArrayList<RideRequest>();
     private int availableTaxi = 0;
 
+    private int completed = 1;
+
     // remember: the lock is on the whole object, I could use synchronized block in the next two methods locking
     // different resource but probably not worth
 
     public synchronized void put(RideRequest ride) {
         rides.add(ride);
-        if (availableTaxi > 0)
+        if (availableTaxi > 0 && completed > 0)
             notify();
     }
 
     public synchronized void addAvailableTaxi(){
         ++availableTaxi;
-        if (rides.size() > 0)
+        if (rides.size() > 0 && completed > 0)
+            notify();
+    }
+    public synchronized void addCompleted(){
+        ++completed;
+        if (rides.size() > 0 && availableTaxi > 0)
             notify();
     }
 
@@ -35,7 +42,7 @@ public class RideRequestQueue {
     public synchronized RideRequest take() {
         RideRequest ride = null;
 
-        while(rides.size() == 0 || availableTaxi == 0) {
+        while(rides.size() == 0 || availableTaxi == 0 || completed == 0) {
             try {
                 wait();
             } catch (InterruptedException e) {
@@ -43,10 +50,11 @@ public class RideRequestQueue {
             }
         }
 
-        if(rides.size() > 0 && availableTaxi > 0){
+        if(rides.size() > 0 && availableTaxi > 0 && completed > 0){
             ride = rides.get(0);
             rides.remove(0);
             --availableTaxi;
+            --completed;
         }
 
         return ride;

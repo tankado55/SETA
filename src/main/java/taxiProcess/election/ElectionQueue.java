@@ -4,6 +4,7 @@ import SETA.RideRequest;
 import taxiProcess.Taxi;
 
 import java.util.LinkedList;
+import java.util.List;
 
 public class ElectionQueue {
 
@@ -48,4 +49,18 @@ public class ElectionQueue {
     public synchronized void clear(){
         rides.clear();
     }
+    public synchronized void discard(String rideId){
+        RideRequest toRemove = null;
+        for (RideRequest ride : rides){
+            if (ride.getId().equals(rideId)){
+                toRemove = ride;
+            }
+        }
+        if (toRemove != null){
+            rides.remove(toRemove);
+            System.out.println("ride" + toRemove.getId() + " discarded");
+        }
+    }
 }
+
+

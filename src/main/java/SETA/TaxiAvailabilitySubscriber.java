@@ -63,6 +63,7 @@ public class TaxiAvailabilitySubscriber {
                         try {
                             JSONObject msg = new JSONObject(new String(message.getPayload()));
                             RideChecker.getInstance().addRide(msg.getInt("rideId"));
+                            rideRequestQueues.get(msg.getInt("district") - 1).addCompleted();
                         } catch (JSONException e) {
                             throw new RuntimeException(e);
                         }

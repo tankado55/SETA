@@ -86,6 +86,7 @@ public class Taxi {
     private String currentRideId = new String();
 
     public ElectionQueue electionQueue = new ElectionQueue();
+    private Object notifyReference = null;
 
     // Grpc
     private List<DelayedResponse> delayedRideResponses = new ArrayList<>();
@@ -273,7 +274,7 @@ public class Taxi {
                     public void messageArrived(String topic, MqttMessage message) {
                         // Called when a message arrives from the server that matches any subscription made by the client
 
-                        if (topic.equals(ridesTopic + position.getDistrict()) && !authorizedExit){
+                        if (topic.equals(ridesTopic + position.getDistrict()) && !authorizedExit && !busy){
 
                             System.out.println("received mqtt message on topic:" + topic);
                             startElection(topic, message); // it put ride in the queue
@@ -290,8 +291,6 @@ public class Taxi {
                                 exit();
                             }
                         }
-
-
                     }
                     public void connectionLost(Throwable cause) {
                         System.out.println(clientId + " Connectionlost! cause:" + cause.getMessage()+ "-  Thread PID: " + Thread.currentThread().getId());
@@ -315,7 +314,7 @@ public class Taxi {
 
         electionQueue.put(ride);
 
-        if (parallelElectionCount == 0 && authorizedExit && battery.toRecharge())
+        if (authorizedExit && battery.toRecharge())
             startRechargeRequest();
     }
 
@@ -436,6 +435,7 @@ public class Taxi {
 
     public void handleRide(RideRequest ride){
         //unSubscribeToRideRequests();
+        publishRideCompleted(ride.getId(), ride.getStartingPosition().getDistrict());
 
         synchronized (busy){
             busy = true;
@@ -464,8 +464,6 @@ public class Taxi {
         } catch (InterruptedException e) {
             e.printStackTrace();
         }
-
-        publishRideCompleted(ride.getId());
 
         System.out.println("Taxi n." + id + ", ride" + ride.getId() + " Completed!");
         // discharge and change of position
@@ -529,10 +527,11 @@ public class Taxi {
         }
 
     }
-    public void publishRideCompleted(String rideId){
+    public void publishRideCompleted(String rideId, int district){
         try {
             JSONObject payload = new JSONObject();
             payload.put("rideId", rideId);
+            payload.put("district", district);
             MqttMessage msg = new MqttMessage(payload.toString().getBytes());
             client.publish("completedRides", msg);
         } catch (MqttException | JSONException e) {e.printStackTrace();}
@@ -572,6 +571,10 @@ public class Taxi {
         synchronized (toExit){
             toExit = true;
         }
+    }
+
+    public void addNotifyReference(Object o){
+        this.notifyReference = o;
     }
 }
 
