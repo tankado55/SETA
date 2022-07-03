@@ -15,15 +15,11 @@ import java.util.Scanner;
 
 public class Main {
 
-
     public final static String SERVERADDRESS = "http://localhost:1337";
 
     public static void main(String[] args) throws IOException {
         Taxi taxi = Taxi.getInstance();
         taxi.init();
-
-
-        // TODO bisognerebbe sottoscriversi a un topic dove SETA dichiara di essersi avviato, in questo caso ripubblico le availaability
 
         Scanner command = new Scanner(System.in);
         while (true){
@@ -38,19 +34,11 @@ public class Main {
                     if (!taxi.busy)
                         taxi.startExitRequest();
                 }
-
             }
             else{
                 System.out.println("Insert a valid input");
             }
         }
-
         //client.disconnect();
-
-
     }
-
-
-
-
 }

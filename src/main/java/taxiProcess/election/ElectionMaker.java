@@ -40,7 +40,7 @@ public class ElectionMaker extends Thread{
 
         List<TaxiInfo> currentContacts;
         RideAcquisition rideAcquisition = null;
-        synchronized (taxi.taxiContacts) { //TODO incasplutation
+        synchronized (taxi.taxiContacts) {
             rideAcquisition = new RideAcquisition(taxi.taxiContacts.size(), ride);
             currentContacts = new ArrayList<>(taxi.taxiContacts);
         }

@@ -1,6 +1,8 @@
 package SETA;
 
 import beans.Position;
+import org.codehaus.jettison.json.JSONException;
+import org.codehaus.jettison.json.JSONObject;
 import org.eclipse.paho.client.mqttv3.MqttClient;
 import org.eclipse.paho.client.mqttv3.MqttConnectOptions;
 import org.eclipse.paho.client.mqttv3.MqttException;
@@ -43,6 +45,19 @@ public class SETA {
         }
         // Inizialize subcriber that work with queues
         new TaxiAvailabilitySubscriber(rideRequestQueues, client).subscribe();
+
+        // Publish that SETA is online
+        try {
+            JSONObject payload = new JSONObject();
+            payload.put("SetaOnline", "OK");
+            MqttMessage msg = new MqttMessage(payload.toString().getBytes());
+            msg.setQos(SETA.qos);
+            client.publish("SetaOnline", msg);
+        } catch (MqttException e) {
+            throw new RuntimeException(e);
+        } catch (JSONException e) {
+            throw new RuntimeException(e);
+        }
 
         // generating and publish two random rides every 5 seconds
         int idCounter = 0;

@@ -43,7 +43,7 @@ public class Taxi {
     private static Taxi instance;
 
     private String id;
-    private String ip = "127.0.0.1";
+    private final String ip = "127.0.0.1";
     private String port;
 
     // MQTT
@@ -61,27 +61,22 @@ public class Taxi {
     // Taxi Data
     private Position position;
     private Taxi(){}
-    private Battery battery = new Battery();
+    private final Battery battery = new Battery();
     public Boolean busy = false;
     public Boolean authorizedExit = false;
-    private Integer parallelElectionCount = 0;
     public  Boolean wantToCharge = false;
     private PM10Buffer pm10Buffer;
-    private RidesStatsBuffer rideStatsBuffer = new RidesStatsBuffer();
+    private final RidesStatsBuffer rideStatsBuffer = new RidesStatsBuffer();
     public String currentRide = new String();
     private Boolean toExit = false;
-
-    private LinkedList<RideAcquisition> rideAcquisitions = new LinkedList<>();
     public Boolean electionLock = false;
     private String currentRideId = new String();
-
     public ElectionQueue electionQueue = new ElectionQueue();
-    private Object notifyReference = null;
 
     // Grpc
     public List<DelayedResponse> delayedRideResponses = new ArrayList<>();
-    private List<StreamObserver<RechargeServicesOuterClass.RechargeResponse>> delayedRechargeResponses = new ArrayList<>();
-    public List<TaxiInfo> taxiContacts = new ArrayList<TaxiInfo>();
+    private final List<StreamObserver<RechargeServicesOuterClass.RechargeResponse>> delayedRechargeResponses = new ArrayList<>();
+    public List<TaxiInfo> taxiContacts = new ArrayList<>();
     private ElectionMaker electionMaker;
 
     public static Taxi getInstance(){
@@ -112,7 +107,7 @@ public class Taxi {
         GrpcServices grpc = GrpcServices.getInstance();
         grpc.setPort(Integer.valueOf(port));
         grpc.start();
-        while (grpc.getServerState() != "Server Started"){try {sleep(1000);} catch (InterruptedException e) {throw new RuntimeException(e);}};
+        while (grpc.getServerState() != "Server Started"){try {sleep(1000);} catch (InterruptedException e) {throw new RuntimeException(e);}}
         pm10Buffer = new PM10Buffer();
         new PM10Simulator(pm10Buffer).start();
         new StatisticsModule(this, restClient, pm10Buffer, rideStatsBuffer).start();
@@ -122,6 +117,11 @@ public class Taxi {
         electionMaker = new ElectionMaker(this, electionQueue);
         electionMaker.start();
         exitResponseTopic = "exitResponse" + id;
+        try {
+            client.subscribe("SetaOnline",qos);
+        } catch (MqttException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     public String getId() {
@@ -185,10 +185,10 @@ public class Taxi {
         try {
             id = br.readLine();
             //System.out.println("Insert Port");
+            Integer.parseInt(id);
             int portInt = 50500 + Integer.parseInt(id);
             port = String.valueOf(portInt);
-            //TODO check inputs
-        } catch (IOException e) {e.printStackTrace();}
+        } catch (IOException e) {System.out.println("Insert a valid input");}
         restClient = Client.create();
 
         // POST
@@ -293,6 +293,9 @@ public class Taxi {
                                 exit();
                             }
                         }
+                        else if (topic.equals("SetaOnline")){
+                            publishAvailability();
+                        }
                     }
                     public void connectionLost(Throwable cause) {
                         System.out.println(clientId + " Connectionlost! cause:" + cause.getMessage()+ "-  Thread PID: " + Thread.currentThread().getId());
@@ -341,10 +344,10 @@ public class Taxi {
 
         //send a message to all taxi
         List<TaxiInfo> currentContacts;
-        synchronized (taxiContacts) { //TODO incasplutation
+        synchronized (taxiContacts) {
             currentContacts = new ArrayList<>(taxiContacts);
         }
-        List<Thread> requestThreads = new ArrayList<Thread>();
+        List<Thread> requestThreads = new ArrayList<>();
         for (TaxiInfo taxiContact : currentContacts) {
             String target = taxiContact.getIp() + ":" + taxiContact.getPort();
             Thread requestThread = new Thread(() -> {
@@ -445,10 +448,6 @@ public class Taxi {
         authorizedExit = false;
         wantToCharge = false;
         battery.removeTriggerForRechargeAfterRideCompleted();
-        /*
-        synchronized (busy){
-            busy = false;
-        }*/
     }
     public void subscribeToRideRequests(){
 
@@ -626,9 +625,5 @@ public class Taxi {
         synchronized (toExit){
             toExit = true;
         }
-    }
-
-    public void addNotifyReference(Object o){
-        this.notifyReference = o;
     }
 }
